@@ -1,0 +1,17 @@
+{
+  "name": "splitwise-clone",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Splitwise-inspired shared expense tracker",
+  "scripts": {
+    "build:mobile": "mkdir -p www && cp index.html www/index.html",
+    "android:sync": "npm run build:mobile && cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/core": "^7.4.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.3"
+  }
+}
