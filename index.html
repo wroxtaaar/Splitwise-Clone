@@ -131,7 +131,30 @@ body{background:#fff;color:#373b3f;font-family:"Helvetica Neue",Helvetica,Arial,
  .mobile-overall{font-size:17px}
  .mobile-fab{right:18px;padding:18px 24px;font-size:18px}
 }
-</style></head><body>
+
+@media(max-width:760px){
+.top{height:85px;padding:41px 14px 0}.mobile-actions{gap:15px}.mobile-actions button{font-size:19px}.mobile-actions i{font-size:10px}
+.layout{padding:0 15px}.main{padding-bottom:86px}
+.mobile-overall{height:68px;font-size:10.5px;padding-right:23px}.mobile-overall strong{font-size:10.5px;margin-left:3px}.filter{font-size:21px}
+#mobileGroupRows{gap:14px}.mobile-group{gap:15px;min-height:77px}.group-art{width:92px;height:77px;flex:0 0 92px;border-radius:8px;font-size:38px}
+.mobile-group-name{font-size:11px;margin-bottom:5px}.mobile-group-balance{font-size:10.5px}.mobile-group-detail{font-size:8.5px;margin-top:9px}.mobile-group-detail.settled{font-size:10.5px}
+.new-group{height:46px;padding:0 15px;margin:22px auto 10px;font-size:10px;border-width:1px}
+.mobile-fab{right:15px;bottom:58px;padding:11px 17px;font-size:10.5px}
+.mobile{height:41px;padding:3px 1px calc(3px + env(safe-area-inset-bottom))}.mobile button{font-size:8px;gap:2px}.mobile button span{font-size:16px}
+.mobile-subview{display:block;padding-bottom:15px}.mobile-subview[hidden]{display:none}
+.mobile-subhead{display:flex;align-items:center;justify-content:space-between;margin:7px 0 12px}.mobile-subhead h2{font-size:16px;font-weight:500;margin:0}
+.mobile-back{border:0;background:none;color:#8ed9cb;font-size:12px;padding:6px 0}
+.mobile-card{border-bottom:1px solid #3b4143;padding:12px 0;display:flex;align-items:center;gap:10px;min-width:0}
+.mobile-card .desc b{font-size:11px;color:#f5f5f5}.mobile-card .sub{font-size:9px;color:#aebbc5}.mobile-card .balance{font-size:10px;color:#8ed9cb}
+.mobile-card .icon,.mobile-card .avatar{width:36px;height:36px;flex:0 0 36px}
+.mobile-card-action{border:1px solid #00b894;border-radius:18px;background:transparent;color:#00c7a0;padding:6px 10px;font-size:9px}
+.mobile-empty{color:#aebbc5;text-align:center;padding:32px 12px;font-size:11px}
+.mobile-summary{padding:14px 0;border-bottom:1px solid #3b4143}.mobile-summary small{display:block;color:#aebbc5;font-size:9px}.mobile-summary strong{font-size:18px;color:#8ed9cb}
+.mobile-action{width:100%;border:1px solid #00b894;color:#00c7a0;background:transparent;border-radius:22px;padding:11px;font-size:11px;margin-top:12px}
+.mobile-detail-title{font-size:14px;margin:8px 0;color:#fff}.mobile-subview .expense{border-bottom:1px solid #3b4143;padding:10px 0}
+.mobile-subview .date{background:#303638}.mobile-subview .date b,.mobile-subview .desc b{color:#fff}.mobile-subview .amt{color:#fff}
+.backdrop{color:#373b3f;color-scheme:light}
+}</style></head><body>
 <header class="top"><div class="logo"><span class="mark">↗</span>Splitwise</div><div class="user"><span id="topName">Alex Morgan</span><span class="avatar" id="avatar">A</span></div><div class="mobile-actions"><button aria-label="Search" data-search>⌕</button><button aria-label="Add friend" data-modal="friend">♧<i>＋</i></button></div></header>
 <div class="layout"><aside class="side"><div class="navlabel">Overview</div><a href="#" class="nav active" data-page="home">▦ &nbsp; Dashboard</a><a href="#" class="nav" data-page="activity">↻ &nbsp; Recent activity</a><div class="navlabel">Manage</div><a href="#" class="nav" data-page="groups">◫ &nbsp; Groups</a><a href="#" class="nav" data-page="friends">♧ &nbsp; Friends</a><a href="#" class="nav" data-page="balances">⇄ &nbsp; All balances</a><div class="navlabel">Personal</div><a href="#" class="nav" data-settings>⚙ &nbsp; Profile settings</a></aside>
 <main class="main"><section class="mobile-groups" id="mobileGroupsView"><div class="mobile-overall">Overall, you are owed <strong id="mobileOwed">₹0.00</strong><button aria-label="Filter" class="filter">☷</button></div><div id="mobileGroupRows"></div><button class="new-group" data-modal="group">♧ &nbsp; Start a new group</button></section>
