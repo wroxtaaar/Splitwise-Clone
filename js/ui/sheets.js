@@ -140,7 +140,8 @@ function settleSheet({ groupId, friendId }) {
 // ---------------- group ----------------
 function groupSheet({ id }) {
   const editing = id ? store.getRecord('groups', id) : null;
-  const picked = new Set(editing ? editing.members : []);
+  // a new group starts with the other signed-in person already ticked
+  const picked = new Set(editing ? editing.members : m.friends().filter((p) => p.isUser).map((p) => p.id));
   const row = (p) => `<div class="person"><input type="checkbox" id="m_${p.id}" value="${p.id}" ${picked.has(p.id) ? 'checked' : ''}><label class="name" for="m_${p.id}">${esc(p.name)}</label></div>`;
   const { form, layer } = present(editing ? 'Edit group' : 'New group', `
     <div class="field"><label for="g_name">Group name</label><input class="input" id="g_name" name="name" maxlength="50" value="${esc(editing?.name || '')}" placeholder="Trip, apartment, office lunch…" autocomplete="off"></div>

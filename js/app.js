@@ -1,17 +1,13 @@
 import { ME, setMe, formatMoney } from './logic.js';
 import * as store from './store.js';
-import { connect, disconnect, getStatus, newCode, onStatus, startSync, cleanUrl } from './sync.js';
+import * as auth from './auth.js';
+import * as sync from './sync.js';
 import * as views from './ui/views.js';
 import { openSheet, sheetOpen, closeSheets } from './ui/sheets.js';
 import { icon, toast, confirmDialog } from './ui/util.js';
 
-// Which person is this phone? Stored per device (never synced), so two phones can see the same data from each side.
-try {
-  const savedMe = localStorage.getItem('splits-me');
-  if (savedMe && store.getRecord('people', savedMe)) setMe(savedMe);
-} catch { /* ignore */ }
-
-const ui = { tab: 'groups', nav: [], hideSettled: false };
+// mode: which full-screen state the app is in. Only 'app' shows the tabs and lists.
+const ui = { tab: 'groups', nav: [], hideSettled: false, mode: 'splash' };
 const root = document.getElementById('app');
 const TABS = [['groups', 'Groups', 'users'], ['friends', 'Friends', 'user'], ['activity', 'Activity', 'activity'], ['account', 'Account', 'account']];
 const ROOT_VIEWS = { groups: views.groupsView, friends: views.friendsView, activity: views.activityView, account: views.accountView };
@@ -25,6 +21,7 @@ function screen() {
 let lastKey = '';
 let queued = false;
 export function render() {
+  if (ui.mode !== 'app') return;
   const key = ui.tab + '/' + ui.nav.map((n) => n.view + n.id).join('/');
   const y = key === lastKey ? window.scrollY : 0;
   let s = screen();
@@ -44,11 +41,17 @@ export function render() {
   if (missing) history.back(); // the item was deleted (here or on another device): leave its page
 }
 
-const scheduleRender = () => {
+// Changes arriving from the other phone must not wipe what you are typing: wait until you stop.
+const typing = () => root.contains(document.activeElement) && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+function scheduleRender(source) {
   if (queued) return;
   queued = true;
-  requestAnimationFrame(() => { queued = false; render(); });
-};
+  requestAnimationFrame(function run() {
+    if (source === 'remote' && typing()) { setTimeout(() => requestAnimationFrame(run), 1000); return; }
+    queued = false;
+    render();
+  });
+}
 
 function bindSearch() {
   const box = document.getElementById('searchBox');
@@ -67,6 +70,7 @@ function push(view) {
 history.replaceState({ d: -1 }, '');
 history.pushState({ d: 0 }, '');
 window.addEventListener('popstate', (e) => {
+  if (ui.mode !== 'app') return;
   if (sheetOpen()) { // back closes the sheet and stays on the same view
     closeSheets();
     history.pushState({ d: ui.nav.length }, '');
@@ -84,6 +88,55 @@ function applyTheme() {
   if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
   else delete document.documentElement.dataset.theme;
 }
+
+// ---- full-screen states ----
+function showLogin(error = '', email = '') {
+  ui.mode = 'login';
+  closeSheets();
+  root.innerHTML = views.loginScreen({ needServer: !auth.configured(), error, email, ...auth.server() });
+  window.scrollTo(0, 0);
+}
+function showSplash(message, retry = false) {
+  ui.mode = 'splash';
+  root.innerHTML = views.splashScreen(message, { retry });
+}
+function showName() {
+  ui.mode = 'name';
+  root.innerHTML = views.nameScreen();
+  document.getElementById('nameBox').focus();
+}
+function showApp() {
+  ui.mode = 'app';
+  ui.tab = 'groups';
+  ui.nav = [];
+  lastKey = '';
+  render();
+}
+
+/** Signed in: load this user's data, sync, and show the app. */
+async function enter(session) {
+  setMe(session.user.id);
+  store.init(session.user.id);
+  applyTheme();
+  if (store.getRecord('people', ME)) showApp(); // returning device: show cached data at once
+  else showSplash('Setting up…');
+  await sync.start();
+  if (ui.mode === 'login') return; // the session was rejected while syncing
+  if (!store.getRecord('people', ME)) {
+    // First time on this phone and no name yet: only ask once we know the server doesn't already have one.
+    if (sync.getStatus() !== 'connected') { showSplash(sync.statusText() || 'Could not reach the server.', true); return; }
+    showName();
+    return;
+  }
+  if (ui.mode !== 'app') showApp();
+}
+
+function leaveToLogin(message) {
+  sync.stop();
+  auth.signOut();
+  showLogin(message || '');
+}
+sync.onAuthLost(() => leaveToLogin('Your session expired. Please sign in again.'));
 
 // ---- actions ----
 document.addEventListener('click', async (e) => {
@@ -103,49 +156,58 @@ document.addEventListener('click', async (e) => {
     case 'delete-settlement':
       if (await confirmDialog('Delete this payment?')) { store.removeRecord('settlements', d.id); toast('Payment deleted'); }
       break;
-    case 'sync-create': case 'sync-join': {
-      const url = document.getElementById('syncUrl').value;
-      const codeEl = document.getElementById('syncCode');
-      if (d.act === 'sync-create' && !codeEl.value.trim()) codeEl.value = newCode();
-      try {
-        await connect(d.act === 'sync-create' ? 'create' : 'join', url, codeEl.value);
-        toast(d.act === 'sync-create' ? 'Shared space created' : 'Joined shared space');
-        render();
-      } catch (err) { toast(err.message || 'Could not connect'); }
+    case 'sync-now':
+      toast('Syncing…');
+      await sync.syncNow();
+      toast(sync.statusText());
       break;
-    }
-    case 'sync-off':
-      if (await confirmDialog('Stop syncing on this device? Your data stays here.', 'Disconnect')) { disconnect(); render(); }
+    case 'sign-out':
+      if (ui.mode !== 'app' || await confirmDialog('Sign out of this phone? Your data stays safe on the server.', 'Sign out')) leaveToLogin();
       break;
+    case 'retry-boot': { const s = auth.getSession(); if (s) { showSplash('Setting up…'); enter(s); } else showLogin(); break; }
     case 'export': exportBackup(); break;
     case 'import': document.getElementById('importFile').click(); break;
   }
 });
 
-document.addEventListener('submit', (e) => {
-  if (e.target.id === 'profileForm') {
+const friendly = (err) => (err instanceof TypeError ? 'Can’t reach the server. Check your connection and the project URL.' : err.message || 'Something went wrong');
+
+document.addEventListener('submit', async (e) => {
+  const id = e.target.id;
+  if (id === 'profileForm') {
     e.preventDefault();
-    const name = document.getElementById('meName').value.trim() || 'You';
+    const name = document.getElementById('meName').value.trim() || 'Me';
     const currency = document.getElementById('currency').value.trim() || '₹';
     store.setSettings({ currency });
-    store.put('people', { id: ME, name });
+    store.put('people', { id: ME, name, isUser: true });
     toast('Saved');
-  } else if (e.target.id === 'syncForm') {
+  } else if (id === 'loginForm') {
     e.preventDefault();
+    const email = document.getElementById('a_email').value.trim();
+    const password = document.getElementById('a_pw').value;
+    const btn = document.getElementById('loginBtn');
+    try {
+      if (!auth.configured()) {
+        auth.setServer(document.getElementById('a_url')?.value, document.getElementById('a_key')?.value);
+        if (!auth.configured()) throw new Error('Enter the project URL (https://…) and the anon key from Supabase → Project Settings → API.');
+      }
+      if (!email || !password) throw new Error('Enter your email and password.');
+      btn.disabled = true;
+      btn.textContent = 'Signing in…';
+      await enter(await auth.signIn(email, password));
+    } catch (err) {
+      showLogin(friendly(err), email);
+    }
+  } else if (id === 'nameForm') {
+    e.preventDefault();
+    const name = document.getElementById('nameBox').value.trim();
+    if (!name) { document.getElementById('nameBox').focus(); return; }
+    store.put('people', { id: ME, name, isUser: true });
+    showApp();
   }
 });
 
 document.addEventListener('change', async (e) => {
-  if (e.target.id === 'meSel') {
-    const id = e.target.value;
-    try { localStorage.setItem('splits-me', id); } catch { /* ignore */ }
-    setMe(id);
-    store.people().filter((p) => p.id !== id && p.name === 'You').forEach((p) => store.put('people', { id: p.id, name: 'Partner' }));
-    ui.nav.length = 0;
-    toast('This phone now sees things as ' + (store.getRecord('people', id)?.name || 'you'));
-    render();
-    return;
-  }
   if (e.target.id !== 'importFile') return;
   const file = e.target.files[0];
   e.target.value = '';
@@ -153,13 +215,13 @@ document.addEventListener('change', async (e) => {
   try {
     const data = JSON.parse(await file.text());
     if (!(await confirmDialog('Replace everything on this device with this backup?', 'Restore'))) return;
-    store.importBackup(data);
+    store.importBackup(data, ME);
     toast('Backup restored');
   } catch { toast('That file is not a valid backup'); }
 });
 
 async function exportBackup() {
-  const json = JSON.stringify({ app: 'splitwise-clone', version: 2, exportedAt: new Date().toISOString(), ...store.snapshot() }, null, 2);
+  const json = JSON.stringify({ app: 'splits', version: 3, exportedAt: new Date().toISOString(), ...store.snapshot() }, null, 2);
   const file = new File([json], `expenses-backup-${new Date().toISOString().slice(0, 10)}.json`, { type: 'application/json' });
   try {
     if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file] }); return; }
@@ -175,18 +237,27 @@ async function exportBackup() {
 // ---- boot ----
 store.subscribe((source) => {
   if (source === 'settings') applyTheme();
-  scheduleRender();
+  scheduleRender(source);
 });
-onStatus((s) => {
+sync.onStatus((s) => {
+  // update in place: re-rendering would wipe whatever is being typed
   const label = document.getElementById('syncStatus');
-  if (label) label.textContent = views.syncLabel[s];
+  if (label) label.textContent = sync.statusText(s);
   const dot = document.getElementById('syncDot');
   if (dot) dot.className = `status-dot ${s}`;
+  const chip = document.getElementById('syncChip');
+  if (chip) {
+    const bad = s === 'offline' || s === 'error' || s === 'denied';
+    chip.hidden = !bad;
+    chip.textContent = s === 'offline' ? 'Offline' : s === 'denied' ? 'Not allowed' : 'Sync problem';
+  }
 });
+
 applyTheme();
-render();
-startSync();
+const session = auth.getSession();
+if (auth.configured() && session) enter(session);
+else showLogin();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 
 // Handy for debugging in the browser console.
-window.__app = { ui, store, formatMoney, getStatus, cleanUrl };
+window.__app = { ui, store, sync, auth, formatMoney };

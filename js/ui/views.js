@@ -2,15 +2,9 @@
 import { ME } from '../logic.js';
 import * as store from '../store.js';
 import * as m from '../model.js';
-import { getConfig, getStatus } from '../sync.js';
+import { getStatus, statusText } from '../sync.js';
+import { getSession } from '../auth.js';
 import { esc, icon, money, dayOf, monthShort, monthLong, prettyDate, artStyle, avatarStyle, initial, cat, catTile } from './util.js';
-
-export const syncLabel = {
-  off: 'Not connected',
-  connecting: 'Connecting…',
-  connected: 'Connected · syncing automatically',
-  error: 'Could not reach the database. Check the URL and rules.',
-};
 
 const who = (id) => m.personName(id);
 const whoLower = (id) => m.personName(id, { you: 'you' });
@@ -18,7 +12,13 @@ const whoLower = (id) => m.personName(id, { you: 'you' });
 const iconBtn = (name, attrs, label) => `<button class="iconbtn" aria-label="${label}" ${attrs}>${icon(name)}</button>`;
 const backBtn = () => iconBtn('back', 'data-act="back"', 'Back');
 const bar = (left, title, right = '') => `<div class="topbar">${left}${title ? `<h1>${esc(title)}</h1>` : '<span class="spacer"></span>'}${right}</div>`;
-const rootBar = (title, right = '') => bar('', '', right).replace('<span class="spacer"></span>', `<h1 style="margin-left:12px">${esc(title)}</h1>`);
+// A small "Offline" chip shows only when the last sync failed; app.js updates it in place.
+const chip = () => {
+  const s = getStatus();
+  const bad = s === 'offline' || s === 'error' || s === 'denied';
+  return `<span class="syncchip" id="syncChip" ${bad ? '' : 'hidden'}>${esc(s === 'offline' ? 'Offline' : s === 'denied' ? 'Not allowed' : 'Sync problem')}</span>`;
+};
+const rootBar = (title, right = '') => `<div class="topbar"><h1 style="margin-left:12px">${esc(title)}</h1>${chip()}${right}</div>`;
 const searchBtn = () => iconBtn('search', 'data-act="open" data-view="search"', 'Search');
 const addFriendBtn = () => iconBtn('userPlus', 'data-act="sheet" data-sheet="friend"', 'Add friend');
 const empty = (title, text) => `<div class="empty"><b>${esc(title)}</b>${esc(text)}</div>`;
@@ -142,27 +142,20 @@ export function activityView() {
 export function accountView() {
   const st = store.getState();
   const me = store.getRecord('people', ME);
-  const cfg = getConfig();
   const status = getStatus();
-  const label = syncLabel[status];
+  const email = getSession()?.user?.email || '';
   const theme = (v, text) => `<button class="${st.settings.theme === v ? 'on' : ''}" data-act="theme" data-v="${v}">${text}</button>`;
   const body = `<div class="content">
-    <div class="card"><h3>Who uses this phone?</h3>
-      <div class="field"><select class="select" id="meSel" aria-label="Who uses this phone">${store.people().map((p) => `<option value="${p.id}" ${p.id === ME ? 'selected' : ''}>${esc(p.name === 'You' ? 'Owner' : p.name)}</option>`).join('')}</select></div>
-      <small class="note">Each person picks themselves on their own phone. "You" and the other person's name flip automatically, and everything stays in sync.</small></div>
     <div class="card"><h3>Profile</h3>
-      <form id="profileForm"><div class="field"><label for="meName">Your name</label><input class="input" id="meName" value="${esc(me?.name || '')}" maxlength="40"></div>
+      <form id="profileForm"><div class="field"><label for="meName">Your name (the other person sees this)</label><input class="input" id="meName" value="${esc(me?.name || '')}" maxlength="40"></div>
       <div class="field"><label for="currency">Currency symbol</label><input class="input" id="currency" value="${esc(st.settings.currency)}" maxlength="4"></div>
       <button class="btn solid">Save</button></form></div>
     <div class="card"><h3>Appearance</h3><div class="seg">${theme('system', 'System')}${theme('light', 'Light')}${theme('dark', 'Dark')}</div></div>
-    <div class="card"><h3>Sync between your devices</h3>
-      <div class="hint" style="margin:0 0 10px"><span class="status-dot ${status}" id="syncDot"></span><span id="syncStatus">${esc(label)}</span></div>
-      <form id="syncForm">
-        <div class="field"><label for="syncUrl">Firebase Realtime Database URL</label><input class="input" id="syncUrl" type="url" placeholder="https://your-project-default-rtdb.firebaseio.com" value="${esc(cfg.dbUrl)}" autocomplete="off"></div>
-        <div class="field"><label for="syncCode">Shared code</label><input class="input code" id="syncCode" maxlength="16" value="${esc(cfg.code)}" autocomplete="off" autocapitalize="characters"></div>
-        <div class="btn-row"><button type="button" class="btn solid" data-act="sync-create">Create new space</button><button type="button" class="btn" data-act="sync-join">Join with code</button>${cfg.code ? '<button type="button" class="btn danger" data-act="sync-off">Disconnect</button>' : ''}</div>
-      </form>
-      <small class="note">Anyone who has the database URL and code can read and change this data. Use a long random code and don’t share it.</small></div>
+    <div class="card"><h3>Sync</h3>
+      <div class="hint" style="margin:0 0 10px"><span class="status-dot ${status}" id="syncDot"></span><span id="syncStatus">${esc(statusText(status))}</span></div>
+      <div class="kv"><span class="muted">Signed in as</span><span>${esc(email)}</span></div>
+      <div class="btn-row"><button type="button" class="btn solid" data-act="sync-now">Sync now</button><button type="button" class="btn danger" data-act="sign-out">Sign out</button></div>
+      <small class="note">Changes sync automatically on every device you are signed in on, and are kept on this phone when you are offline.</small></div>
     <div class="card"><h3>Backup</h3><div class="btn-row"><button class="btn" data-act="export">Export JSON</button><button class="btn" data-act="import">Restore JSON</button></div>
       <input type="file" id="importFile" accept="application/json" hidden></div>
   </div>`;
@@ -201,7 +194,8 @@ export function friendView(id) {
     <div class="summary"><div class="big">${headline}</div></div>
     <div class="pills" style="padding-left:0"><button data-act="sheet" data-sheet="settle" data-friend="${id}">Settle up</button></div>
     ${timeline(items, true)}${items.length ? '' : empty('No shared expenses', `You and ${f.name} haven’t shared anything yet.`)}</div>`;
-  return { bar: bar(backBtn(), '', iconBtn('edit', `data-act="sheet" data-sheet="friend" data-id="${id}"`, 'Edit friend')), body, fab: true };
+  const editBtn = f.isUser ? '' : iconBtn('edit', `data-act="sheet" data-sheet="friend" data-id="${id}"`, 'Edit friend');
+  return { bar: bar(backBtn(), '', editBtn), body, fab: true };
 }
 
 export function expenseView(id) {
@@ -245,4 +239,29 @@ export function searchResults(query) {
   const e = store.expenses().filter((x) => x.description.toLowerCase().includes(q) || (x.notes || '').toLowerCase().includes(q)).sort(m.byRecent).slice(0, 30).map((x) => expenseRow(x));
   const section = (t, a) => (a.length ? `<div class="section-title">${t}</div>${a.join('')}` : '');
   return section('Groups', g) + section('Friends', f) + section('Expenses', e) || empty('No matches', 'Try a different word.');
+}
+
+// ---------- sign-in and setup screens (full page, no tab bar) ----------
+const authShell = (inner) => `<div class="auth"><div class="auth-logo"><svg width="56" height="56" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#1ca585"/><path d="M148 176h216M148 336h216" stroke="#fff" stroke-width="40" stroke-linecap="round"/><path d="M200 256h112" stroke="#fff" stroke-width="40" stroke-linecap="round" opacity=".55"/></svg></div>${inner}</div>`;
+
+export function loginScreen({ needServer = false, error = '', email = '', url = '', key = '' } = {}) {
+  return authShell(`<h1>Splits</h1><p class="muted">Sign in to see your shared expenses.</p>
+    <form id="loginForm" novalidate>
+      ${needServer ? `<div class="field"><label for="a_url">Supabase project URL</label><input class="input" id="a_url" type="url" placeholder="https://xxxx.supabase.co" value="${esc(url)}" autocomplete="off" autocapitalize="off"></div>
+      <div class="field"><label for="a_key">Anon public key</label><input class="input" id="a_key" placeholder="eyJ…" value="${esc(key)}" autocomplete="off" autocapitalize="off"></div>` : ''}
+      <div class="field"><label for="a_email">Email</label><input class="input" id="a_email" type="email" value="${esc(email)}" autocomplete="username" autocapitalize="off"></div>
+      <div class="field"><label for="a_pw">Password</label><input class="input" id="a_pw" type="password" autocomplete="current-password"></div>
+      <div class="hint bad" id="authError" ${error ? '' : 'hidden'}>${esc(error)}</div>
+      <button class="btn solid block" id="loginBtn">Sign in</button>
+    </form>`);
+}
+
+export function splashScreen(message, { retry = false } = {}) {
+  return authShell(`<p class="muted" id="splashMsg">${esc(message)}</p>${retry ? '<div class="btn-row" style="justify-content:center"><button class="btn solid" data-act="retry-boot">Try again</button><button class="btn" data-act="sign-out">Sign out</button></div>' : ''}`);
+}
+
+export function nameScreen() {
+  return authShell(`<h1>What’s your name?</h1><p class="muted">The other person will see this on their phone, for example “Wasiq paid ₹500”.</p>
+    <form id="nameForm" novalidate><div class="field"><label for="nameBox">Your name</label><input class="input" id="nameBox" maxlength="40" autocomplete="off"></div>
+    <button class="btn solid block">Continue</button></form>`);
 }

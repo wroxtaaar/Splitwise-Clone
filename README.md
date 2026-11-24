@@ -1,60 +1,66 @@
 # Splits
 
-A personal shared-expense tracker: groups, friends, uneven splits and settle up. Mobile-first, works offline,
-and can sync between your own devices. No accounts, no build step, no dependencies to run it.
+A personal shared-expense tracker for two people (and their phones). Groups, friends, settle up, a Splitwise-style
+layout, no limits on how many expenses you add. Works offline and syncs automatically through your own Supabase project.
 
 ## Features
 
-- Groups, friends and non-group expenses
-- Four split types: equally, exact amounts, percentages, shares (always add up to the paise)
-- Group balances are simplified to the fewest payments; non-group balances stay pairwise
-- Settle up from a group or a friend; a payment spreads across the groups where the money is actually owed
-- Edit and delete expenses and payments, notes, search, activity feed
-- Dark and light themes (follows the system, or choose in Account)
-- Works offline (localStorage + service worker); JSON backup and restore
-- Optional sync across devices through Firebase Realtime Database (per-record merge, so two devices
-  adding expenses at the same time don't overwrite each other)
+- Groups, friends and non-group expenses; settle up from a group or a friend
+- Each person signs in once per phone. "You" always means the person holding the phone,
+  so one phone shows "you owe Wasiq" while the other shows "Papa owes you"
+- Syncs automatically: on open, after every change, when the app returns to the foreground and every few seconds while open
+- Works offline: changes are kept on the phone and uploaded when the connection is back (an "Offline" chip shows meanwhile)
+- Two phones adding expenses at the same time never overwrite each other (each record syncs on its own, newest edit wins)
+- Edit and delete expenses and payments, notes, search, activity feed, dark/light theme, JSON backup and restore
+- Amounts are stored as whole paise, so there are no rounding errors
 - Android APK built by GitHub Actions (Capacitor)
+
+## Set up sync (one time, about 10 minutes)
+
+1. Create a free project at [supabase.com](https://supabase.com). Wait until it finishes starting.
+2. **Authentication → Users → Add user → Create new user.** Create one user for each person (email + password) and tick
+   **Auto Confirm User**.
+3. **SQL Editor → New query.** Open `supabase/setup.sql`, replace the two example emails with the two real ones,
+   paste it in and press **Run**. It creates the table and makes sure only those two emails can read or write anything.
+4. **Authentication → Sign In / Providers → Email:** switch off **Allow new users to sign up** so nobody else can create an account.
+5. **Project Settings → API:** copy the **Project URL** and the **anon public** key.
+   Paste them into the app's sign-in screen the first time, or put them in `js/config.js` so the phones never ask.
+   The anon key is meant to be public. **Never** use the `service_role` key anywhere in this app.
+6. Sign in on each phone with its own email and password. The first time, the app asks for your name
+   (this is what the other person sees).
+
+Free projects can be paused after about a week without any activity. You use the app daily, so this should not happen,
+but if it does, un-pause the project from the Supabase dashboard.
 
 ## Run it
 
 ```bash
 npm run dev      # serves the folder at http://localhost:8080 (needs python3)
-npm test         # unit tests for the money logic (Node 20+, no installs)
+npm test         # unit tests (Node 20+, nothing to install)
 ```
 
 Any static host works (Vercel, GitHub Pages, Netlify…): publish the repository root.
 
-## Sync between devices (optional, one-time setup)
-
-1. Create a Firebase project and a **Realtime Database**; copy its URL.
-2. In **Rules**, publish:
-   ```json
-   { "rules": { "spaces": { "$code": { ".read": true, ".write": true } } } }
-   ```
-3. On the first device: **Account → Sync** → paste the URL → **Create new space**. Note the code.
-4. On other devices: paste the same URL and code → **Join with code**.
-
-There is no login: anyone with the database URL **and** the code can read and change that space. The code is
-random and 8 characters long, so keep both private and don't store anything sensitive in the app.
-
 ## Android
 
-`.github/workflows/build-android-apk.yml` runs the tests, copies the web app into a Capacitor project and
-uploads a debug APK as a build artifact. Locally: `npm install && npm run android:sync`.
+`.github/workflows/build-android-apk.yml` runs the tests, copies the web app into a Capacitor project and uploads a
+debug APK as a build artifact (Actions → latest run → Artifacts). Locally: `npm install && npm run android:sync`.
 
 ## Layout
 
 ```
-index.html          app shell
-css/styles.css      theme + layout
-js/logic.js         pure money logic (splits, balances, debt simplification) — unit tested
-js/store.js         local-first store with tombstones, persisted to localStorage
-js/sync.js          Firebase REST + EventSource sync
-js/model.js         derived data for the screens
-js/ui/              views, forms (sheets), helpers
-js/app.js           routing, actions, boot
-tests/              node:test unit tests
+index.html            app shell
+css/styles.css        theme + layout
+js/logic.js           pure money logic (splits, balances, debt simplification), unit tested
+js/store.js           local-first store: tombstones, "still to upload" tracking, per-user storage
+js/auth.js            Supabase email + password sign-in (plain fetch)
+js/sync.js            pull / push with Supabase, retries, offline handling
+js/config.js          your project URL + anon key (optional)
+js/model.js           derived data for the screens
+js/ui/                views, forms (sheets), helpers
+js/app.js             sign-in flow, routing, actions
+supabase/setup.sql    table, newest-edit-wins rule and security policies
+tests/                node:test unit tests
 ```
 
-Amounts are stored as integer paise, so there are no floating-point errors.
+Other backends are possible: only `js/auth.js` and `js/sync.js` talk to the server.

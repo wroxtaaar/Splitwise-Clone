@@ -228,3 +228,12 @@ body { font-size: 14px; line-height: 1.35; }
 .card { padding: 12px 14px; }
 .card h3 { font-size: 14px; }
 .toast { font-size: 13px; padding: 9px 14px; }
+
+/* ===== sign-in screens and sync chip ===== */
+.auth { padding: calc(56px + env(safe-area-inset-top)) 24px 32px; max-width: 420px; margin: 0 auto; }
+.auth-logo { margin-bottom: 14px; }
+.auth h1 { font-size: 26px; font-weight: 500; margin: 0 0 6px; }
+.auth p { margin: 0 0 22px; }
+.auth .btn.block { margin-top: 6px; }
+.syncchip { align-self: center; font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--surface); color: var(--neg); border: 1px solid var(--line); margin-right: 4px; }
+.syncchip[hidden] { display: none; }

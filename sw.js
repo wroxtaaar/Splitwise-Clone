@@ -1,6 +1,6 @@
 // Network-first service worker: always tries the network, falls back to the cached copy offline.
-const CACHE = 'splits-v2';
-const SHELL = ['./', 'index.html', 'css/styles.css', 'js/app.js', 'js/logic.js', 'js/store.js', 'js/sync.js', 'js/model.js', 'js/ui/util.js', 'js/ui/views.js', 'js/ui/sheets.js', 'manifest.webmanifest', 'icon.svg'];
+const CACHE = 'splits-v3';
+const SHELL = ['./', 'index.html', 'css/styles.css', 'js/app.js', 'js/logic.js', 'js/store.js', 'js/sync.js', 'js/auth.js', 'js/config.js', 'js/model.js', 'js/ui/util.js', 'js/ui/views.js', 'js/ui/sheets.js', 'manifest.webmanifest', 'icon.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
