@@ -1,10 +1,13 @@
 {
-  "name": "splitwise-clone",
-  "version": "1.0.0",
+  "name": "splits-app",
+  "version": "2.0.0",
   "private": true,
-  "description": "Splitwise-inspired shared expense tracker",
+  "description": "Personal shared-expense tracker (groups, friends, uneven splits, settle up)",
+  "type": "module",
   "scripts": {
-    "build:mobile": "mkdir -p www && cp index.html www/index.html",
+    "dev": "python3 -m http.server 8080",
+    "test": "node --test tests/logic.test.mjs",
+    "build:mobile": "rm -rf www && mkdir -p www && cp -r index.html manifest.webmanifest sw.js icon.svg css js www/",
     "android:sync": "npm run build:mobile && cap sync android"
   },
   "dependencies": {

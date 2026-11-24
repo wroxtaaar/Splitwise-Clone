@@ -1,58 +1,60 @@
-# Splitwise Clone
+# Splits
 
-A responsive Splitwise-inspired expense-sharing app for a small, shared group.
+A personal shared-expense tracker: groups, friends, uneven splits and settle up. Mobile-first, works offline,
+and can sync between your own devices. No accounts, no build step, no dependencies to run it.
 
 ## Features
 
-- Create groups and friends
-- Add expenses with equal or custom splits
-- Record settlements and calculate balances
-- Mobile-friendly Groups, Friends, Activity, and Account screens
-- Local caching for quick loading and offline viewing
-- Automatic cross-device sync using a shared code and Firebase Realtime Database
-- No app login, signup, password, or approval flow
-- Android APK build through GitHub Actions
+- Groups, friends and non-group expenses
+- Four split types: equally, exact amounts, percentages, shares (always add up to the paise)
+- Group balances are simplified to the fewest payments; non-group balances stay pairwise
+- Settle up from a group or a friend; a payment spreads across the groups where the money is actually owed
+- Edit and delete expenses and payments, notes, search, activity feed
+- Dark and light themes (follows the system, or choose in Account)
+- Works offline (localStorage + service worker); JSON backup and restore
+- Optional sync across devices through Firebase Realtime Database (per-record merge, so two devices
+  adding expenses at the same time don't overwrite each other)
+- Android APK built by GitHub Actions (Capacitor)
 
-## Enable automatic sync (one-time setup)
+## Run it
 
-The app uses Firebase Realtime Database's REST and realtime streaming endpoints. No Firebase SDK, app account, or authentication is used.
-
-1. Open the [Firebase Console](https://console.firebase.google.com/) and create a project.
-2. In **Build → Realtime Database**, create a database. Choose a region and copy its database URL (for example, `https://your-project-default-rtdb.firebaseio.com` or the `.firebasedatabase.app` format).
-3. Open the Realtime Database **Rules** tab and use these rules:
-
-```json
-{
-  "rules": {
-    "spaces": {
-      "$sharedCode": {
-        ".read": true,
-        ".write": true
-      }
-    }
-  }
-}
+```bash
+npm run dev      # serves the folder at http://localhost:8080 (needs python3)
+npm test         # unit tests for the money logic (Node 20+, no installs)
 ```
 
-4. Publish the rules.
-5. Open the app on the first device → **Account** → paste the database URL → **Save database URL** → **Create a new shared space**.
-6. Copy the generated shared code.
-7. On every other device, open **Account**, enter the same database URL and shared code, then tap **Join with code**.
+Any static host works (Vercel, GitHub Pages, Netlify…): publish the repository root.
 
-After joining, expense, group, friend, and settlement changes are sent to the shared database and streamed to connected devices. Each device also keeps a local copy so it can display the last synced data while offline. Live updates require an internet connection.
+## Sync between devices (optional, one-time setup)
 
-### Important note about the no-auth setup
+1. Create a Firebase project and a **Realtime Database**; copy its URL.
+2. In **Rules**, publish:
+   ```json
+   { "rules": { "spaces": { "$code": { ".read": true, ".write": true } } } }
+   ```
+3. On the first device: **Account → Sync** → paste the URL → **Create new space**. Note the code.
+4. On other devices: paste the same URL and code → **Join with code**.
 
-These rules deliberately allow public read/write access under the `spaces` path because this app has no authentication, as requested. The shared code is a locator, not a secure password. Anyone who obtains the database URL and a space code can read or change that space. Do not use this setup for sensitive or financial-account credentials.
-
-## Deploy
-
-This is a static HTML app and deploys to Vercel from the connected GitHub branch. Every push to `main` triggers a deployment.
+There is no login: anyone with the database URL **and** the code can read and change that space. The code is
+random and 8 characters long, so keep both private and don't store anything sensitive in the app.
 
 ## Android
 
-The repository includes a GitHub Actions workflow that builds a debug APK and uploads it as an Actions artifact. Install the APK on each Android device, then join the same shared space code.
+`.github/workflows/build-android-apk.yml` runs the tests, copies the web app into a Capacitor project and
+uploads a debug APK as a build artifact. Locally: `npm install && npm run android:sync`.
 
-## Local development
+## Layout
 
-Open `index.html` in a browser. Cloud sync requires an HTTPS-hosted app and a Firebase Realtime Database configured as described above.
+```
+index.html          app shell
+css/styles.css      theme + layout
+js/logic.js         pure money logic (splits, balances, debt simplification) — unit tested
+js/store.js         local-first store with tombstones, persisted to localStorage
+js/sync.js          Firebase REST + EventSource sync
+js/model.js         derived data for the screens
+js/ui/              views, forms (sheets), helpers
+js/app.js           routing, actions, boot
+tests/              node:test unit tests
+```
+
+Amounts are stored as integer paise, so there are no floating-point errors.

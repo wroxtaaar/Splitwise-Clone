@@ -1,8 +1,7 @@
 {
-  "appId": "com.wroxtaaar.splitwiseclone",
-  "appName": "Splitwise Clone",
+  "appId": "com.wroxtaaar.splits",
+  "appName": "Splits",
   "webDir": "www",
-  "bundledWebRuntime": false,
   "server": {
     "androidScheme": "https"
   }

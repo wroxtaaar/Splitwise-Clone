@@ -44,6 +44,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Run tests
+        run: npm test
+
       - name: Prepare web assets
         run: npm run build:mobile
 
@@ -75,7 +78,7 @@ jobs:
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: Splitwise-Clone-debug-apk
+          name: Splits-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30

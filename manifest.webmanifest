@@ -1,0 +1,10 @@
+{
+  "name": "Splits",
+  "short_name": "Splits",
+  "description": "Shared expenses for friends and groups",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#202223",
+  "theme_color": "#202223",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
