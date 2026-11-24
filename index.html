@@ -238,7 +238,9 @@ if(type==='expense'){
  const gs=$('[name=groupId]'),people=$('#people input[name=person]');
  gs?.addEventListener('change',()=>{let g=group(gs.value);if(g)people.forEach(x=>x.checked=g.members.includes(x.value));});
 }
-$('#backdrop').classList.add('open');$('#form').dataset.type=type;$('#mode')?.addEventListener('change',e=>{$$('#people input[type=number]').forEach(x=>x.style.display=e.target.value==='custom'?'block':'none');$('#hint').textContent=e.target.value==='custom'?'Custom shares must add up to the total.':'The total is divided equally.'})}
+$('#backdrop').classList.add('open');$('#form').dataset.type=type;
+if(type==='settle'&&activeFriendId){let n=balances()[activeFriendId]||0;if(n>0){$('[name=from]').value=activeFriendId;$('[name=to]').value='me'}else if(n<0){$('[name=from]').value='me';$('[name=to]').value=activeFriendId}}
+$('#mode')?.addEventListener('change',e=>{$$('#people input[type=number]').forEach(x=>x.style.display=e.target.value==='custom'?'block':'none');$('#hint').textContent=e.target.value==='custom'?'Custom shares must add up to the total.':'The total is divided equally.'})}
 function close(){ $('#backdrop').classList.remove('open') }
 $('#form').addEventListener('submit',e=>{e.preventDefault();let fd=new FormData(e.currentTarget),type=e.currentTarget.dataset.type;if(type==='expense'){let amount=Number(fd.get('amount')),ids=fd.getAll('person');if(!ids.length){toast('Select at least one person');return}let splits={},used=0;if(fd.get('mode')==='custom'){let sum=0;ids.forEach(id=>{splits[id]=Number(fd.get('share_'+id)||0);sum+=splits[id]});if(Math.abs(sum-amount)>.01){toast('Shares must add up to the total');return}}else{ids.forEach((id,i)=>{splits[id]=i===ids.length-1?Math.round((amount-used)*100)/100:Math.round(amount/ids.length*100)/100;used+=splits[id]})}data.expenses.push({id:'e'+Date.now(),description:fd.get('description').trim(),amount,payer:fd.get('payer'),participants:ids,splits,groupId:fd.get('groupId')||null,date:fd.get('date')})}
 if(type==='group')data.groups.push({id:'g'+Date.now(),name:fd.get('name').trim(),members:['me',...fd.getAll('member')]});
