@@ -3,7 +3,7 @@ import { ME } from '../logic.js';
 import * as store from '../store.js';
 import * as m from '../model.js';
 import { getConfig, getStatus } from '../sync.js';
-import { esc, icon, money, dayOf, monthShort, monthLong, prettyDate, artStyle, avatarStyle, initial } from './util.js';
+import { esc, icon, money, dayOf, monthShort, monthLong, prettyDate, artStyle, avatarStyle, initial, cat, catTile } from './util.js';
 
 export const syncLabel = {
   off: 'Not connected',
@@ -47,7 +47,7 @@ function expenseRow(e, { effect, showGroup = true } = {}) {
   const g = e.groupId && store.getRecord('groups', e.groupId);
   const eff = effect === undefined ? m.myEffectOn(e) : effect;
   return `<button class="row" data-act="open" data-view="expense" data-id="${e.id}">
-    <div class="datebox"><b>${dayOf(e.date)}</b>${monthShort(e.date)}</div>
+    <div class="datebox">${monthShort(e.date)}<b>${dayOf(e.date)}</b></div>${catTile(e.description)}
     <div class="main"><div class="title">${esc(e.description)}</div>
     <div class="sub">${who(e.payer)} paid ${money(e.amount)}${showGroup && g ? ' · ' + esc(g.name) : ''}</div></div>
     <div class="end">${effectEnd(eff)}</div></button>`;
@@ -61,7 +61,7 @@ function settlementRow(s, effect) {
 }
 
 /** Expenses and payments, newest first, under month headings. */
-function timeline(items, pairEffect = false) {
+function timeline(items, pairEffect = false, showGroup = true) {
   let current = '';
   return items
     .map((it) => {
@@ -69,7 +69,7 @@ function timeline(items, pairEffect = false) {
       const head = month !== current ? `<div class="month">${month}</div>` : '';
       current = month;
       const effect = pairEffect ? it.effect : undefined;
-      return head + (it.kind === 'expense' ? expenseRow(it.record, { effect }) : settlementRow(it.record, it.effect));
+      return head + (it.kind === 'expense' ? expenseRow(it.record, { effect, showGroup }) : settlementRow(it.record, it.effect));
     })
     .join('');
 }
@@ -97,14 +97,14 @@ export function groupsView(ui) {
     return `<button class="group-row" data-act="open" data-view="group" data-id="${id}">${art}<div class="group-info"><div class="group-name">${esc(name)}</div>${head}${lines}${more}</div></button>`;
   };
 
-  const list = visible.map(({ g, s }) => row(g.id, g.name, s, `<div class="art" style="${artStyle(g.id)}">${icon('users', 34)}</div>`)).join('')
-    + (hasLoose ? row(m.NO_GROUP, 'Non-group expenses', loose, `<div class="art" style="background:var(--surface);color:var(--muted)">${icon('receipt', 34)}</div>`) : '');
+  const list = visible.map(({ g, s }) => row(g.id, g.name, s, `<div class="art" style="${artStyle(g.id)}">${icon(/home|ghar|house|flat|rent|room/i.test(g.name) ? 'home' : 'list', 38)}</div>`)).join('')
+    + (hasLoose ? row(m.NO_GROUP, 'Non-group expenses', loose, `<div class="art" style="background:linear-gradient(135deg,#1ec2a0 50%,#8a58d0 50%)">${icon('receipt', 36)}</div>`) : '');
 
   const body = `<div class="content">
     <div class="overall"><div class="grow">${overallLine()}</div>${iconBtn('filter', 'data-act="toggle-settled"', ui.hideSettled ? 'Show settled groups' : 'Hide settled groups')}</div>
     ${list || empty(rows.length ? 'All settled up' : 'No groups yet', rows.length ? 'Nothing outstanding in any group.' : 'Create a group to start splitting expenses.')}
-    <button class="pill-btn" data-act="sheet" data-sheet="group">${icon('users', 22)} Start a new group</button></div>`;
-  return { bar: rootBar('Groups', searchBtn() + addFriendBtn()), body, fab: true };
+    <button class="pill-btn" data-act="sheet" data-sheet="group">${icon('userPlus', 22)} Start a new group</button></div>`;
+  return { bar: rootBar('', searchBtn() + addFriendBtn()), body, fab: true };
 }
 
 export function friendsView() {
@@ -116,7 +116,7 @@ export function friendsView() {
   const body = `<div class="content"><div class="overall"><div class="grow">${overallLine()}</div></div>
     ${list || empty('No friends yet', 'Add a friend to start sharing expenses.')}
     <button class="pill-btn" data-act="sheet" data-sheet="friend">${icon('userPlus', 22)} Add a friend</button></div>`;
-  return { bar: rootBar('Friends', searchBtn() + addFriendBtn()), body, fab: true };
+  return { bar: rootBar('', searchBtn() + addFriendBtn()), body, fab: true };
 }
 
 export function activityView() {
@@ -147,6 +147,9 @@ export function accountView() {
   const label = syncLabel[status];
   const theme = (v, text) => `<button class="${st.settings.theme === v ? 'on' : ''}" data-act="theme" data-v="${v}">${text}</button>`;
   const body = `<div class="content">
+    <div class="card"><h3>Who uses this phone?</h3>
+      <div class="field"><select class="select" id="meSel" aria-label="Who uses this phone">${store.people().map((p) => `<option value="${p.id}" ${p.id === ME ? 'selected' : ''}>${esc(p.name === 'You' ? 'Owner' : p.name)}</option>`).join('')}</select></div>
+      <small class="note">Each person picks themselves on their own phone. "You" and the other person's name flip automatically, and everything stays in sync.</small></div>
     <div class="card"><h3>Profile</h3>
       <form id="profileForm"><div class="field"><label for="meName">Your name</label><input class="input" id="meName" value="${esc(me?.name || '')}" maxlength="40"></div>
       <div class="field"><label for="currency">Currency symbol</label><input class="input" id="currency" value="${esc(st.settings.currency)}" maxlength="4"></div>
@@ -176,14 +179,15 @@ export function groupView(id) {
     ...s.settlements.map((record) => ({ kind: 'settlement', record, effect: record.to === ME ? -record.amount : record.from === ME ? record.amount : 0 })),
   ].sort(m.byRecent);
   const people = real ? real.members.map((mid) => `<div class="row"><div class="avatar" style="${avatarStyle(mid)}">${esc(initial(who(mid)))}</div><div class="main"><div class="title">${esc(who(mid))}</div></div></div>`).join('') : '';
-  const body = `<div class="content">
-    <div class="row" style="border:0;padding-top:4px"><div class="art big" style="${real ? artStyle(id) : 'background:var(--surface);color:var(--muted)'}">${icon(real ? 'users' : 'receipt', 30)}</div>
-      <div class="main"><div style="font-size:20px;font-weight:600">${esc(real ? real.name : 'Non-group expenses')}</div>${real ? `<div class="sub">${real.members.length} member${real.members.length === 1 ? '' : 's'}</div>` : ''}</div></div>
-    <div class="summary">${s.debts.length ? s.debts.map((d) => `<div class="line">${debtLine(d)}</div>`).join('') : `<div class="big">${items.length ? 'You are all settled up' : 'No expenses yet'}</div>`}</div>
-    <div class="btn-row"><button class="btn solid" data-act="sheet" data-sheet="settle" data-group="${id}">Settle up</button><button class="btn" data-act="sheet" data-sheet="expense" data-group="${id}">Add expense</button></div>
-    ${timeline(items)}${items.length ? '' : empty('Nothing here yet', 'Add an expense to this group.')}
+  const sum = s.debts.length ? s.debts.map((d) => `<div>${debtLine(d)}</div>`).join('') : `<div class="muted">${items.length ? 'You are all settled up' : 'No expenses yet'}</div>`;
+  const n = real ? real.members.length : 0;
+  const banner = `<div class="banner" style="${real ? artStyle(id) : 'background:linear-gradient(135deg,#1ec2a0 50%,#8a58d0 50%)'}"><div class="banner-top"><button class="circ" data-act="back" aria-label="Back">${icon('back', 22)}</button>${real ? `<button class="circ" data-act="sheet" data-sheet="group" data-id="${id}" aria-label="Group settings">${icon('gear', 20)}</button>` : ''}</div>
+    <h1>${esc(real ? real.name : 'Non-group expenses')}</h1>${real ? `<div class="chip">${icon('users', 18)} ${n} ${n === 1 ? 'person' : 'people'}</div>` : ''}</div>`;
+  const body = `${banner}<div class="sumline">${sum}</div>
+    <div class="pills"><button data-act="sheet" data-sheet="settle" data-group="${id}">Settle up</button></div>
+    <div class="content">${timeline(items, false, false)}${items.length ? '' : empty('Nothing here yet', 'Tap Add expense to add the first one.')}
     ${real ? `<div class="section-title">Members</div>${people}` : ''}</div>`;
-  return { bar: bar(backBtn(), '', real ? iconBtn('edit', `data-act="sheet" data-sheet="group" data-id="${id}"`, 'Edit group') : ''), body, fab: false };
+  return { bar: '', body, fab: true };
 }
 
 export function friendView(id) {
@@ -195,24 +199,28 @@ export function friendView(id) {
     <div class="row" style="border:0;padding-top:4px"><div class="avatar" style="${avatarStyle(id)};width:64px;height:64px;flex-basis:64px;font-size:26px">${esc(initial(f.name))}</div>
       <div class="main"><div style="font-size:20px;font-weight:600">${esc(f.name)}</div></div></div>
     <div class="summary"><div class="big">${headline}</div></div>
-    <div class="btn-row"><button class="btn solid" data-act="sheet" data-sheet="settle" data-friend="${id}">Settle up</button><button class="btn" data-act="sheet" data-sheet="expense" data-friend="${id}">Add expense</button></div>
+    <div class="pills" style="padding-left:0"><button data-act="sheet" data-sheet="settle" data-friend="${id}">Settle up</button></div>
     ${timeline(items, true)}${items.length ? '' : empty('No shared expenses', `You and ${f.name} haven’t shared anything yet.`)}</div>`;
-  return { bar: bar(backBtn(), '', iconBtn('edit', `data-act="sheet" data-sheet="friend" data-id="${id}"`, 'Edit friend')), body, fab: false };
+  return { bar: bar(backBtn(), '', iconBtn('edit', `data-act="sheet" data-sheet="friend" data-id="${id}"`, 'Edit friend')), body, fab: true };
 }
 
 export function expenseView(id) {
   const e = store.getRecord('expenses', id);
   if (!e) return null;
-  const g = e.groupId && store.getRecord('groups', e.groupId);
-  const people = Object.entries(e.splits || {}).map(([pid, owed]) => `<div class="kv"><span>${esc(who(pid))}${pid === e.payer ? ' <span class="muted">(paid)</span>' : ''}</span><span>owes ${money(owed)}</span></div>`).join('');
-  const body = `<div class="content">
-    <div class="row" style="border:0"><div class="art big" style="${artStyle(e.groupId || e.id)}">${icon('receipt', 30)}</div>
-      <div class="main"><div style="font-size:20px;font-weight:600">${esc(e.description)}</div><div style="font-size:22px;font-weight:600">${money(e.amount)}</div>
-      <div class="sub">${prettyDate(e.date)}${g ? ' · ' + esc(g.name) : ''}</div></div></div>
-    <div class="summary"><div class="line"><b>${esc(who(e.payer))}</b> paid ${money(e.amount)}</div>${people}</div>
-    ${e.notes ? `<div class="card"><h3>Notes</h3>${esc(e.notes).replace(/\n/g, '<br>')}</div>` : ''}
-    <div class="btn-row"><button class="btn solid" data-act="sheet" data-sheet="expense" data-id="${id}">Edit</button><button class="btn danger" data-act="delete-expense" data-id="${id}">Delete</button></div></div>`;
-  return { bar: bar(backBtn(), 'Expense'), body, fab: false };
+  const c = cat(e.description);
+  const own = (e.splits || {})[e.payer] || 0;
+  const avatar = (pid) => (pid === ME ? '<div class="avatar mepie"></div>' : `<div class="avatar" style="${avatarStyle(pid)}">${esc(initial(who(pid)))}</div>`);
+  const others = Object.entries(e.splits || {}).filter(([pid, owed]) => pid !== e.payer && owed > 0)
+    .map(([pid, owed]) => `<div class="tl">${esc(who(pid))} owes ${money(owed)}</div>`).join('');
+  const body = `<div class="xhead" style="background:${c.bg}"><div class="xbar"><button class="iconbtn" data-act="back" aria-label="Back">${icon('back')}</button><span class="spacer"></span>
+      <button class="iconbtn" data-act="delete-expense" data-id="${id}" aria-label="Delete">${icon('trash')}</button><button class="iconbtn" data-act="sheet" data-sheet="expense" data-id="${id}" aria-label="Edit">${icon('edit')}</button></div>
+      <div class="xicon">${icon(c.icon, 54)}</div></div>
+    <div class="xt"><div class="xtitle">${esc(e.description)}</div><div class="xamt">${money(e.amount)}</div>
+      <div class="xmeta">Added by you on ${prettyDate(e.date)}${(e.groupId && store.getRecord('groups', e.groupId)) ? ' · ' + esc(store.getRecord('groups', e.groupId).name) : ''}</div></div>
+    <div class="payer">${avatar(e.payer)}<div>${esc(who(e.payer))} paid ${money(e.amount)}</div></div>
+    <div class="tree"><div class="tl">${esc(who(e.payer))} paid ${money(e.amount)}${own > 0 ? ` and ${e.payer === ME ? 'owe' : 'owes'} ${money(own)}` : ''}</div>${others}</div>
+    ${e.notes ? `<div class="xnotes">${esc(e.notes).replace(/\n/g, '<br>')}</div>` : ''}`;
+  return { bar: '', body, fab: false };
 }
 
 export function settlementView(id) {

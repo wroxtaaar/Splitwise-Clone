@@ -27,7 +27,7 @@ export function openSheet(kind, opts = {}) {
 }
 
 const everyone = () => [store.getRecord('people', ME), ...m.friends()];
-const nameOf = (p) => (p.id === ME ? 'You' : p.name);
+const nameOf = (p) => (p.id === ME ? 'You' : p.name === 'You' ? 'Partner' : p.name);
 const options = (list, selected) => list.map((p) => `<option value="${p.id}" ${p.id === selected ? 'selected' : ''}>${esc(nameOf(p))}</option>`).join('');
 const num = (minor) => (minor / 100).toFixed(2);
 
@@ -40,31 +40,18 @@ function expenseSheet({ id, groupId, friendId }) {
   const groupList = m.allGroups();
   const startGroup = editing ? editing.groupId : groupId && groupId !== m.NO_GROUP ? groupId : null;
   const group0 = startGroup && store.getRecord('groups', startGroup) ? startGroup : null;
-  let type = editing?.splitType || 'equal';
-  const values0 = editing?.splitValues || {};
-  const picked = new Set(
-    editing ? Object.keys(editing.splits || {})
-      : group0 ? store.getRecord('groups', group0).members
-      : friendId ? [ME, friendId]
-      : people.map((p) => p.id),
-  );
-
-  const rows = people.map((p) => `<div class="person" data-pid="${p.id}">
-      <input type="checkbox" id="cb_${p.id}" ${picked.has(p.id) ? 'checked' : ''}>
-      <label class="name" for="cb_${p.id}">${esc(nameOf(p))}</label>
-      <input class="val" inputmode="decimal" data-val="${p.id}" value="${esc(values0[p.id] ?? '')}" aria-label="${esc(nameOf(p))} amount" hidden>
-      <span class="unit" hidden></span></div>`).join('');
-  const types = [['equal', 'Equally'], ['exact', 'Exact'], ['percent', 'Percent'], ['shares', 'Shares']];
+  // Whoever did not pay owes the whole amount (with more than two people they share it equally).
+  const pool = (gid) => { const g = gid && store.getRecord('groups', gid); return g ? g.members : friendId ? [ME, friendId] : people.map((p) => p.id); };
+  const othersOf = (gid, payer) => pool(gid).filter((x) => x !== payer);
+  const nm = (pid) => nameOf(people.find((p) => p.id === pid));
 
   const { form } = present(editing ? 'Edit expense' : 'Add expense', `
     <div class="field"><label for="f_desc">Description</label><input class="input" id="f_desc" name="description" maxlength="80" value="${esc(editing?.description || '')}" placeholder="Dinner, groceries, taxi…" autocomplete="off"></div>
     <div class="field"><label for="f_amount">Amount</label><div class="amount-row"><span class="cur">${esc(symbol)}</span><input class="input" id="f_amount" name="amount" inputmode="decimal" value="${editing ? num(editing.amount) : ''}" placeholder="0.00" autocomplete="off"></div></div>
     <div class="two"><div class="field"><label for="f_date">Date</label><input class="input" id="f_date" name="date" type="date" value="${editing?.date || today()}"></div>
     <div class="field"><label for="f_payer">Paid by</label><select class="select" id="f_payer" name="payer">${options(people, editing?.payer || ME)}</select></div></div>
+    <div class="hint" id="f_hint" style="margin:-4px 0 14px"></div>
     <div class="field"><label for="f_group">Group</label><select class="select" id="f_group" name="groupId"><option value="">No group</option>${groupList.map((g) => `<option value="${g.id}" ${g.id === group0 ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></div>
-    <div class="field"><span class="label">Split</span>
-      <div class="seg" role="group">${types.map(([v, t]) => `<button type="button" data-type="${v}" class="${v === type ? 'on' : ''}">${t}</button>`).join('')}</div>
-      <div class="people">${rows}</div><div class="hint" id="f_hint"></div></div>
     <div class="field"><label for="f_notes">Notes (optional)</label><textarea class="textarea" id="f_notes" name="notes" rows="2">${esc(editing?.notes || '')}</textarea></div>`,
   (f) => {
     const el = (n) => f.elements[n];
@@ -72,99 +59,41 @@ function expenseSheet({ id, groupId, friendId }) {
     if (!description) { toast('Add a description'); return false; }
     const amount = toMinor(el('amount').value);
     if (!(amount > 0)) { toast('Enter an amount'); return false; }
-    const ids = checkedIds();
     const payer = el('payer').value;
-    if (new Set([...ids, payer]).size < 2) { toast('Pick at least one other person'); return false; }
-    const values = {};
-    if (type !== 'equal') ids.forEach((pid) => { values[pid] = valueOf(pid); });
-    const r = computeSplits({ type, amount, participants: ids, values });
-    if (r.error) {
-      const extra = r.remaining == null ? '' : type === 'exact' ? ` (${money(Math.abs(r.remaining))} ${r.remaining > 0 ? 'left' : 'over'})` : ` (${Math.round(Math.abs(r.remaining) * 100) / 100}% ${r.remaining > 0 ? 'left' : 'over'})`;
-      toast(r.error + extra);
-      return false;
-    }
-    store.put('expenses', { id: editing?.id, description, amount, payer, groupId: el('groupId').value || null, date: el('date').value || today(), notes: el('notes').value.trim(), splitType: type, splitValues: type === 'equal' ? {} : values, splits: r.splits });
+    const gid = el('groupId').value || null;
+    const others = othersOf(gid, payer);
+    if (!others.length) { toast('Pick at least one other person'); return false; }
+    const r = computeSplits({ type: 'equal', amount, participants: others, values: {} });
+    if (r.error) { toast(r.error); return false; }
+    store.put('expenses', { id: editing?.id, description, amount, payer, groupId: gid, date: el('date').value || today(), notes: el('notes').value.trim(), splitType: 'equal', splitValues: {}, splits: r.splits });
     toast(editing ? 'Expense updated' : 'Expense added');
   });
 
-  const rowEls = () => [...form.querySelectorAll('.person')];
-  const visibleRows = () => rowEls().filter((r) => !r.hidden);
-  const checkedIds = () => visibleRows().filter((r) => r.querySelector('input[type=checkbox]').checked).map((r) => r.dataset.pid);
-  const valueOf = (pid) => form.querySelector(`[data-val="${pid}"]`).value;
-  const amountMinor = () => { const v = toMinor(form.elements.amount.value); return Number.isNaN(v) ? 0 : v; };
-
   function refresh() {
-    const ids = checkedIds();
-    const amount = amountMinor();
-    visibleRows().forEach((r) => {
-      const on = r.querySelector('input[type=checkbox]').checked && type !== 'equal';
-      r.querySelector('.val').hidden = !on;
-      const unit = r.querySelector('.unit');
-      unit.hidden = !on;
-      unit.textContent = type === 'exact' ? symbol : type === 'percent' ? '%' : 'sh';
-    });
-    let text = '';
-    let bad = false;
-    if (type === 'equal') {
-      text = ids.length && amount ? `${money(allocate(amount, ids.map(() => 1))[0])} each · ${ids.length} ${ids.length === 1 ? 'person' : 'people'}` : 'The total is split equally.';
-    } else if (type === 'exact') {
-      const sum = ids.reduce((s, pid) => s + (toMinor(valueOf(pid) || 0) || 0), 0);
-      const left = amount - sum;
-      text = `${money(sum)} of ${money(amount)} · ${left === 0 ? 'all assigned' : `${money(Math.abs(left))} ${left > 0 ? 'left' : 'over'}`}`;
-      bad = left !== 0;
-    } else if (type === 'percent') {
-      const sum = ids.reduce((s, pid) => s + (Number(valueOf(pid)) || 0), 0);
-      text = `${Math.round(sum * 100) / 100}% of 100%`;
-      bad = Math.abs(sum - 100) > 0.001;
-    } else {
-      const total = ids.reduce((s, pid) => s + (Number(valueOf(pid)) || 0), 0);
-      text = `${total} share${total === 1 ? '' : 's'} in total`;
-    }
-    const hint = form.querySelector('#f_hint');
-    hint.textContent = text;
-    hint.classList.toggle('bad', bad);
+    const payer = form.elements.payer.value;
+    const others = othersOf(form.elements.groupId.value || null, payer);
+    const v = toMinor(form.elements.amount.value);
+    const amt = Number.isNaN(v) || !v ? '' : ` of ${money(v)}`;
+    const names = others.map(nm);
+    const verb = names.length === 1 && names[0] !== 'You' ? 'owes' : 'owe';
+    form.querySelector('#f_hint').textContent = names.length ? `${names.join(', ')} ${verb} ${payer === ME ? 'you' : nm(payer)} the full amount${amt}.` : '';
   }
 
-  function prefill() {
-    const ids = checkedIds();
-    form.querySelectorAll('.val').forEach((v) => { v.value = ''; });
-    if (!ids.length) return;
-    if (type === 'exact' && amountMinor() > 0) allocate(amountMinor(), ids.map(() => 1)).forEach((v, i) => { form.querySelector(`[data-val="${ids[i]}"]`).value = num(v); });
-    if (type === 'percent') allocate(10000, ids.map(() => 1)).forEach((v, i) => { form.querySelector(`[data-val="${ids[i]}"]`).value = (v / 100).toFixed(2); });
-    if (type === 'shares') ids.forEach((pid) => { form.querySelector(`[data-val="${pid}"]`).value = '1'; });
-  }
-
-  function applyGroup(reset) {
+  function applyGroup() {
     const g = store.getRecord('groups', form.elements.groupId.value);
     const allowed = g ? new Set(g.members) : null;
-    rowEls().forEach((r) => {
-      const ok = !allowed || allowed.has(r.dataset.pid);
-      const cb = r.querySelector('input[type=checkbox]');
-      r.hidden = !ok;
-      if (!ok) cb.checked = false;
-      else if (reset) cb.checked = true;
-    });
     [...form.elements.payer.options].forEach((o) => {
       const ok = !allowed || allowed.has(o.value);
       o.hidden = !ok;
       o.disabled = !ok;
     });
     if (allowed && !allowed.has(form.elements.payer.value)) form.elements.payer.value = ME;
-    if (type !== 'equal') prefill();
     refresh();
   }
 
-  form.addEventListener('click', (e) => {
-    const b = e.target.closest('[data-type]');
-    if (!b) return;
-    type = b.dataset.type;
-    form.querySelectorAll('[data-type]').forEach((x) => x.classList.toggle('on', x === b));
-    prefill();
-    refresh();
-  });
   form.addEventListener('input', refresh);
-  form.addEventListener('change', (e) => { if (e.target.name === 'groupId') applyGroup(true); else refresh(); });
-  if (editing && type !== 'equal') refresh(); else applyGroup(false);
+  form.addEventListener('change', (e) => { if (e.target.name === 'groupId') applyGroup(); else refresh(); });
+  applyGroup();
   if (!editing) form.elements.description.focus();
 }
 

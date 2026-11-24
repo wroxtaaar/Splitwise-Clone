@@ -1,6 +1,8 @@
 // Pure money logic. All amounts are integers in minor units (paise), so there are no float errors.
 
-export const ME = 'me';
+// Id of the person using THIS device. Defaults to the first person; each phone can pick itself in Account.
+export let ME = 'me';
+export const setMe = (id) => { ME = id; };
 
 /** "12.5" -> 1250. Returns NaN for junk input. */
 export function toMinor(value) {

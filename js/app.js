@@ -1,9 +1,15 @@
-import { ME, formatMoney } from './logic.js';
+import { ME, setMe, formatMoney } from './logic.js';
 import * as store from './store.js';
 import { connect, disconnect, getStatus, newCode, onStatus, startSync, cleanUrl } from './sync.js';
 import * as views from './ui/views.js';
 import { openSheet, sheetOpen, closeSheets } from './ui/sheets.js';
 import { icon, toast, confirmDialog } from './ui/util.js';
+
+// Which person is this phone? Stored per device (never synced), so two phones can see the same data from each side.
+try {
+  const savedMe = localStorage.getItem('splits-me');
+  if (savedMe && store.getRecord('people', savedMe)) setMe(savedMe);
+} catch { /* ignore */ }
 
 const ui = { tab: 'groups', nav: [], hideSettled: false };
 const root = document.getElementById('app');
@@ -28,7 +34,9 @@ export function render() {
     s = { bar: `<div class="topbar"><button class="iconbtn" data-act="back" aria-label="Back">${icon('back')}</button></div>`, body: '<div class="content"><div class="empty"><b>Not found</b>This item no longer exists.</div></div>' };
   }
   const tabs = ui.nav.length ? '' : `<nav class="tabs">${TABS.map(([id, label, ic]) => `<button class="tab ${ui.tab === id ? 'active' : ''}" data-act="tab" data-tab="${id}">${icon(ic)}<span>${label}</span></button>`).join('')}</nav>`;
-  const fab = s.fab ? `<button class="fab" data-act="sheet" data-sheet="expense">${icon('receipt', 22)} Add expense</button>` : '';
+  const cur = ui.nav.at(-1);
+  const ctx = cur?.view === 'group' ? ` data-group="${cur.id}"` : cur?.view === 'friend' ? ` data-friend="${cur.id}"` : '';
+  const fab = s.fab ? `<button class="fab" data-act="sheet" data-sheet="expense"${ctx}>${icon('receipt', 24)} Add expense</button>` : '';
   root.innerHTML = s.bar + s.body + fab + tabs;
   window.scrollTo(0, y);
   lastKey = key;
@@ -128,6 +136,16 @@ document.addEventListener('submit', (e) => {
 });
 
 document.addEventListener('change', async (e) => {
+  if (e.target.id === 'meSel') {
+    const id = e.target.value;
+    try { localStorage.setItem('splits-me', id); } catch { /* ignore */ }
+    setMe(id);
+    store.people().filter((p) => p.id !== id && p.name === 'You').forEach((p) => store.put('people', { id: p.id, name: 'Partner' }));
+    ui.nav.length = 0;
+    toast('This phone now sees things as ' + (store.getRecord('people', id)?.name || 'you'));
+    render();
+    return;
+  }
   if (e.target.id !== 'importFile') return;
   const file = e.target.files[0];
   e.target.value = '';
