@@ -39,7 +39,7 @@ The app uses Firebase Realtime Database's REST and realtime streaming endpoints.
 6. Copy the generated shared code.
 7. On every other device, open **Account**, enter the same database URL and shared code, then tap **Join with code**.
 
-After joining, expense, group, friend, and settlement changes are sent to the shared database and streamed to connected devices. Each device also keeps a local copy so it can display the last synced data while offline; changes made offline are uploaded when connectivity returns.
+After joining, expense, group, friend, and settlement changes are sent to the shared database and streamed to connected devices. Each device also keeps a local copy so it can display the last synced data while offline. Live updates require an internet connection.
 
 ### Important note about the no-auth setup
 
