@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "406304847613",
+    "project_id": "analytics-off-5a6a2",
+    "storage_bucket": "analytics-off-5a6a2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:406304847613:android:8139a7398050f118e57094",
+        "android_client_info": {
+          "package_name": "com.wroxtaaar.splits"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAsr2h5py74JdMnXsQWthEUiHHAVi4mQOg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
