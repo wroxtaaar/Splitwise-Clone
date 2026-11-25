@@ -64,3 +64,22 @@ tests/                node:test unit tests
 ```
 
 Other backends are possible: only `js/auth.js` and `js/sync.js` talk to the server.
+
+## Push notifications (Android app)
+
+When one of you adds, edits or deletes an expense or a payment, the other person's phone gets a notification
+("Papa added “WiFi Bill” in “Home Expenses” · You owe ₹250.00"), even when the app is closed.
+
+Parts: the app registers the phone's Firebase token → a database trigger fires on every change → the `notify`
+Edge Function sends the push through Firebase Cloud Messaging.
+
+1. **Firebase** (console.firebase.google.com): create a project (Analytics off) → add an **Android app** with package
+   name `com.wroxtaaar.splits` → download `google-services.json` and commit it as `firebase/google-services.json`
+   (it is not secret). Then Project settings → **Service accounts** → *Generate new private key*. Keep that file private.
+2. **Supabase → SQL Editor**: run `supabase/push.sql`, then run this with your own random `SECRET`:
+   `insert into push_config (id, url, secret) values (1, 'https://<project>.supabase.co/functions/v1/notify', 'SECRET') on conflict (id) do update set url = excluded.url, secret = excluded.secret;`
+3. **Supabase → Edge Functions → Deploy a new function** named `notify`: paste `supabase/functions/notify/index.ts`,
+   turn **Verify JWT off**, deploy.
+4. **Edge Functions → Secrets**: add `PUSH_SECRET` (the same `SECRET`) and `FIREBASE_SERVICE_ACCOUNT` (the whole
+   contents of the private key file from step 1). Optional: `CURRENCY` (default ₹).
+5. Rebuild the APK, install it, open it and allow notifications. Account → Notifications shows the status.

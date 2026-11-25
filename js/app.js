@@ -2,6 +2,7 @@ import { ME, setMe, formatMoney } from './logic.js';
 import * as store from './store.js';
 import * as auth from './auth.js';
 import * as sync from './sync.js';
+import * as notif from './push.js';
 import * as views from './ui/views.js';
 import { openSheet, sheetOpen, closeSheets } from './ui/sheets.js';
 import { icon, toast, confirmDialog } from './ui/util.js';
@@ -130,6 +131,22 @@ async function enter(session) {
     return;
   }
   if (ui.mode !== 'app') showApp();
+  startPush();
+}
+
+function startPush() {
+  notif.start({
+    onOpen: () => { // tapped a notification: show what's new
+      if (ui.mode !== 'app') return;
+      const depth = ui.nav.length;
+      ui.tab = 'activity';
+      ui.nav = [];
+      render();
+      if (depth) history.go(-depth);
+      sync.syncNow();
+    },
+    onForeground: (n) => { toast(n.title || 'New activity'); sync.syncNow(); },
+  });
 }
 
 function leaveToLogin(message) {
@@ -170,8 +187,9 @@ document.addEventListener('click', async (e) => {
       await sync.syncNow();
       toast(sync.statusText());
       break;
+    case 'enable-push': startPush(); break;
     case 'sign-out':
-      if (ui.mode !== 'app' || await confirmDialog('Sign out of this phone? Your data stays safe on the server.', 'Sign out')) leaveToLogin();
+      if (ui.mode !== 'app' || await confirmDialog('Sign out of this phone? Your data stays safe on the server.', 'Sign out')) { await notif.stop(); leaveToLogin(); }
       break;
     case 'retry-boot': { const s = auth.getSession(); if (s) { showSplash('Setting up…'); enter(s); } else showLogin(); break; }
     case 'export': exportBackup(); break;
@@ -248,6 +266,10 @@ store.subscribe((source) => {
   if (source === 'settings') applyTheme();
   scheduleRender(source);
 });
+notif.onState((s) => {
+  const el = document.getElementById('pushStatus');
+  if (el) el.textContent = notif.label(s);
+});
 sync.onStatus((s) => {
   // update in place: re-rendering would wipe whatever is being typed
   const label = document.getElementById('syncStatus');
@@ -269,4 +291,4 @@ else showLogin();
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 
 // Handy for debugging in the browser console.
-window.__app = { ui, store, sync, auth, formatMoney };
+window.__app = { ui, store, sync, auth, notif, formatMoney };

@@ -1,4 +1,5 @@
 // Each view returns { bar, body, fab } as HTML strings. app.js puts them on screen.
+import { supported as pushSupported, label as pushLabel } from '../push.js';
 import { ME } from '../logic.js';
 import * as store from '../store.js';
 import * as m from '../model.js';
@@ -156,6 +157,7 @@ export function accountView() {
       <div class="kv"><span class="muted">Signed in as</span><span>${esc(email)}</span></div>
       <div class="btn-row"><button type="button" class="btn solid" data-act="sync-now">Sync now</button><button type="button" class="btn danger" data-act="sign-out">Sign out</button></div>
       <small class="note">Changes sync automatically on every device you are signed in on, and are kept on this phone when you are offline.</small></div>
+    ${pushSupported() ? `<div class="card"><h3>Notifications</h3><div class="hint" style="margin:0 0 10px" id="pushStatus">${esc(pushLabel())}</div><div class="btn-row"><button type="button" class="btn" data-act="enable-push">Turn on / check</button></div></div>` : ''}
     <div class="card"><h3>Backup</h3><div class="btn-row"><button class="btn" data-act="export">Export JSON</button><button class="btn" data-act="import">Restore JSON</button></div>
       <input type="file" id="importFile" accept="application/json" hidden></div>
   </div>`;

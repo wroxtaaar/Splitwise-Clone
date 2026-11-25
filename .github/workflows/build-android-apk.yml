@@ -53,6 +53,16 @@ jobs:
       - name: Generate Android project
         run: npx cap add android
 
+      - name: Add Firebase (push notifications)
+        run: |
+          if [ ! -f firebase/google-services.json ]; then
+            echo "::error::firebase/google-services.json is missing. See 'Push notifications' in the README."
+            exit 1
+          fi
+          cp firebase/google-services.json android/app/google-services.json
+          sed -i 's#<application#<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <application#' android/app/src/main/AndroidManifest.xml
+          grep -q POST_NOTIFICATIONS android/app/src/main/AndroidManifest.xml
+
       - name: Sync web app into Android project
         run: npx cap sync android
 
