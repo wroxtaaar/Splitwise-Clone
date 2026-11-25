@@ -79,7 +79,18 @@ window.addEventListener('popstate', (e) => {
     return;
   }
   const d = e.state?.d ?? 0;
-  if (d < 0) { history.back(); return; } // already at the root: let the app/browser leave
+  if (d < 0) {
+    // At the root of a tab. Friends / Activity / Account: Back goes Home (Groups) first; only Back on Home leaves the app.
+    if (ui.tab !== 'groups') {
+      ui.tab = 'groups';
+      history.pushState({ d: 0 }, '');
+      render();
+      window.scrollTo(0, 0);
+      return;
+    }
+    history.back();
+    return;
+  }
   ui.nav.length = Math.min(ui.nav.length, d);
   render();
 });
