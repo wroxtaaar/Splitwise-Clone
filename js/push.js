@@ -16,7 +16,7 @@ const listeners = new Set();
 const setState = (s) => { state = s; listeners.forEach((fn) => fn(s)); };
 export const getState = () => state;
 export const onState = (fn) => (listeners.add(fn), () => listeners.delete(fn));
-export const label = (s = state) => ({ unknown: 'Checking…', granted: 'On: you will be told when the other person adds or changes something.', denied: 'Off. Allow notifications for Splits in Android settings.', error: 'Could not turn on. Will retry next time you open the app.' }[s] || '');
+export const label = (s = state) => ({ unknown: 'Checking…', granted: 'On: you will be told when the other person adds or changes something.', denied: 'Off. Allow notifications for Expense in Android settings.', error: 'Could not turn on. Will retry next time you open the app.' }[s] || '');
 
 async function rpc(name, args) {
   const { url, key } = auth.server();

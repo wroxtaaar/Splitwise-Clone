@@ -247,7 +247,7 @@ export function searchResults(query) {
 const authShell = (inner) => `<div class="auth"><div class="auth-logo"><svg width="56" height="56" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#1ca585"/><path d="M148 176h216M148 336h216" stroke="#fff" stroke-width="40" stroke-linecap="round"/><path d="M200 256h112" stroke="#fff" stroke-width="40" stroke-linecap="round" opacity=".55"/></svg></div>${inner}</div>`;
 
 export function loginScreen({ needServer = false, error = '', email = '', url = '', key = '' } = {}) {
-  return authShell(`<h1>Splits</h1><p class="muted">Sign in to see your shared expenses.</p>
+  return authShell(`<h1>Expense</h1><p class="muted">Sign in to see your shared expenses.</p>
     <form id="loginForm" novalidate>
       ${needServer ? `<div class="field"><label for="a_url">Supabase project URL</label><input class="input" id="a_url" type="url" placeholder="https://xxxx.supabase.co" value="${esc(url)}" autocomplete="off" autocapitalize="off"></div>
       <div class="field"><label for="a_key">Anon public key</label><input class="input" id="a_key" placeholder="eyJ…" value="${esc(key)}" autocomplete="off" autocapitalize="off"></div>` : ''}

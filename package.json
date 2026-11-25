@@ -1,5 +1,5 @@
 {
-  "name": "splits-app",
+  "name": "expense-app",
   "version": "2.0.0",
   "private": true,
   "description": "Personal shared-expense tracker (groups, friends, uneven splits, settle up)",

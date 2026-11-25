@@ -1,4 +1,4 @@
-# Splits
+# Expense
 
 A personal shared-expense tracker for two people (and their phones). Groups, friends, settle up, a Splitwise-style
 layout, no limits on how many expenses you add. Works offline and syncs automatically through your own Supabase project.
@@ -74,7 +74,7 @@ Parts: the app registers the phone's Firebase token → a database trigger fires
 Edge Function sends the push through Firebase Cloud Messaging.
 
 1. **Firebase** (console.firebase.google.com): create a project (Analytics off) → add an **Android app** with package
-   name `com.wroxtaaar.splits` → download `google-services.json` and commit it as `firebase/google-services.json`
+   name `com.wroxtaaar.splits` (the app is called Expense; the id stays the same so Firebase and installs keep working) → download `google-services.json` and commit it as `firebase/google-services.json`
    (it is not secret). Then Project settings → **Service accounts** → *Generate new private key*. Keep that file private.
 2. **Supabase → SQL Editor**: run `supabase/push.sql`, then run this with your own random `SECRET`:
    `insert into push_config (id, url, secret) values (1, 'https://<project>.supabase.co/functions/v1/notify', 'SECRET') on conflict (id) do update set url = excluded.url, secret = excluded.secret;`

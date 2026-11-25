@@ -1,6 +1,6 @@
 {
-  "name": "Splits",
-  "short_name": "Splits",
+  "name": "Expense",
+  "short_name": "Expense",
   "description": "Shared expenses for friends and groups",
   "start_url": ".",
   "display": "standalone",

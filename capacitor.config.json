@@ -1,6 +1,6 @@
 {
   "appId": "com.wroxtaaar.splits",
-  "appName": "Splits",
+  "appName": "Expense",
   "webDir": "www",
   "server": {
     "androidScheme": "https"
