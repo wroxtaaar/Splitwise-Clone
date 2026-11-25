@@ -41,9 +41,23 @@ function expenseSheet({ id, groupId, friendId }) {
   const startGroup = editing ? editing.groupId : groupId && groupId !== m.NO_GROUP ? groupId : null;
   const group0 = startGroup && store.getRecord('groups', startGroup) ? startGroup : null;
   // Whoever did not pay owes the whole amount (with more than two people they share it equally).
-  const pool = (gid) => { const g = gid && store.getRecord('groups', gid); return g ? g.members : friendId ? [ME, friendId] : people.map((p) => p.id); };
-  const othersOf = (gid, payer) => pool(gid).filter((x) => x !== payer);
+  // In a group that is everyone else in the group. With no group it is the people ticked under "Split with"
+  // (by default only the signed-in people, so adding another friend later never changes how an expense splits).
   const nm = (pid) => nameOf(people.find((p) => p.id === pid));
+  const gMembers = (gid) => { const g = gid && store.getRecord('groups', gid); return g ? g.members : null; };
+  const defaultOthers = people.filter((p) => p.id !== ME && p.isUser).map((p) => p.id);
+  const withSet = new Set(
+    editing && !editing.groupId ? [...Object.keys(editing.splits || {}), editing.payer]
+      : friendId ? [ME, friendId]
+      : defaultOthers.length ? [ME, ...defaultOthers]
+      : people.map((p) => p.id),
+  );
+  const othersOf = (gid, payer) => {
+    const mem = gMembers(gid);
+    if (mem) return mem.filter((x) => x !== payer);
+    const cand = people.filter((p) => p.id !== payer).map((p) => p.id);
+    return cand.length > 1 ? cand.filter((x) => withSet.has(x)) : cand;
+  };
 
   const { form } = present(editing ? 'Edit expense' : 'Add expense', `
     <div class="field"><label for="f_desc">Description</label><input class="input" id="f_desc" name="description" maxlength="80" value="${esc(editing?.description || '')}" placeholder="Dinner, groceries, taxi…" autocomplete="off"></div>
@@ -52,6 +66,7 @@ function expenseSheet({ id, groupId, friendId }) {
     <div class="field"><label for="f_payer">Paid by</label><select class="select" id="f_payer" name="payer">${options(people, editing?.payer || ME)}</select></div></div>
     <div class="hint" id="f_hint" style="margin:-4px 0 14px"></div>
     <div class="field"><label for="f_group">Group</label><select class="select" id="f_group" name="groupId"><option value="">No group</option>${groupList.map((g) => `<option value="${g.id}" ${g.id === group0 ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></div>
+    <div class="field" id="f_with" hidden><span class="label">Split with</span><div class="people" id="f_withList"></div></div>
     <div class="field"><label for="f_notes">Notes (optional)</label><textarea class="textarea" id="f_notes" name="notes" rows="2">${esc(editing?.notes || '')}</textarea></div>`,
   (f) => {
     const el = (n) => f.elements[n];
@@ -65,7 +80,7 @@ function expenseSheet({ id, groupId, friendId }) {
     if (!others.length) { toast('Pick at least one other person'); return false; }
     const r = computeSplits({ type: 'equal', amount, participants: others, values: {} });
     if (r.error) { toast(r.error); return false; }
-    store.put('expenses', { id: editing?.id, description, amount, payer, groupId: gid, date: el('date').value || today(), notes: el('notes').value.trim(), splitType: 'equal', splitValues: {}, splits: r.splits });
+    store.put('expenses', { id: editing?.id, createdBy: editing?.createdBy || ME, description, amount, payer, groupId: gid, date: el('date').value || today(), notes: el('notes').value.trim(), splitType: 'equal', splitValues: {}, splits: r.splits });
     toast(editing ? 'Expense updated' : 'Expense added');
   });
 
@@ -79,6 +94,14 @@ function expenseSheet({ id, groupId, friendId }) {
     form.querySelector('#f_hint').textContent = names.length ? `${names.join(', ')} ${verb} ${payer === ME ? 'you' : nm(payer)} the full amount${amt}.` : '';
   }
 
+  // the "Split with" list only matters without a group, and only when there is more than one person to choose from
+  function renderWith() {
+    const payer = form.elements.payer.value;
+    const cand = people.filter((p) => p.id !== payer);
+    form.querySelector('#f_with').hidden = Boolean(form.elements.groupId.value) || cand.length < 2;
+    form.querySelector('#f_withList').innerHTML = cand.map((p) => `<div class="person"><input type="checkbox" id="w_${p.id}" value="${p.id}" ${withSet.has(p.id) ? 'checked' : ''}><label class="name" for="w_${p.id}">${esc(nameOf(p))}</label></div>`).join('');
+  }
+
   function applyGroup() {
     const g = store.getRecord('groups', form.elements.groupId.value);
     const allowed = g ? new Set(g.members) : null;
@@ -88,11 +111,17 @@ function expenseSheet({ id, groupId, friendId }) {
       o.disabled = !ok;
     });
     if (allowed && !allowed.has(form.elements.payer.value)) form.elements.payer.value = ME;
+    renderWith();
     refresh();
   }
 
   form.addEventListener('input', refresh);
-  form.addEventListener('change', (e) => { if (e.target.name === 'groupId') applyGroup(); else refresh(); });
+  form.addEventListener('change', (e) => {
+    if (e.target.name === 'groupId') applyGroup();
+    else if (e.target.name === 'payer') { renderWith(); refresh(); }
+    else if (e.target.closest('#f_withList')) { if (e.target.checked) withSet.add(e.target.value); else withSet.delete(e.target.value); refresh(); }
+    else refresh();
+  });
   applyGroup();
   if (!editing) form.elements.description.focus();
 }

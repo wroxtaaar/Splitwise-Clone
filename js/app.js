@@ -30,8 +30,9 @@ export function render() {
     missing = true;
     s = { bar: `<div class="topbar"><button class="iconbtn" data-act="back" aria-label="Back">${icon('back')}</button></div>`, body: '<div class="content"><div class="empty"><b>Not found</b>This item no longer exists.</div></div>' };
   }
-  const tabs = ui.nav.length ? '' : `<nav class="tabs">${TABS.map(([id, label, ic]) => `<button class="tab ${ui.tab === id ? 'active' : ''}" data-act="tab" data-tab="${id}">${icon(ic)}<span>${label}</span></button>`).join('')}</nav>`;
   const cur = ui.nav.at(-1);
+  // like Splitwise, the tab bar stays visible inside a group or a friend's page
+  const tabs = cur && cur.view !== 'group' && cur.view !== 'friend' ? '' : `<nav class="tabs">${TABS.map(([id, label, ic]) => `<button class="tab ${ui.tab === id ? 'active' : ''}" data-act="tab" data-tab="${id}">${icon(ic)}<span>${label}</span></button>`).join('')}</nav>`;
   const ctx = cur?.view === 'group' ? ` data-group="${cur.id}"` : cur?.view === 'friend' ? ` data-friend="${cur.id}"` : '';
   const fab = s.fab ? `<button class="fab" data-act="sheet" data-sheet="expense"${ctx}>${icon('receipt', 24)} Add expense</button>` : '';
   root.innerHTML = s.bar + s.body + fab + tabs;
@@ -144,7 +145,15 @@ document.addEventListener('click', async (e) => {
   if (!t) return;
   const d = t.dataset;
   switch (d.act) {
-    case 'tab': ui.tab = d.tab; render(); window.scrollTo(0, 0); break;
+    case 'tab': { // leave any group/friend page, and unwind its history entries so Back still behaves
+      const depth = ui.nav.length;
+      ui.tab = d.tab;
+      ui.nav = [];
+      render();
+      window.scrollTo(0, 0);
+      if (depth) history.go(-depth);
+      break;
+    }
     case 'open': push({ view: d.view, id: d.id }); break;
     case 'back': history.back(); break;
     case 'sheet': openSheet(d.sheet, { id: d.id, groupId: d.group, friendId: d.friend }); break;

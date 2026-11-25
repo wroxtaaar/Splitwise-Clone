@@ -210,7 +210,7 @@ export function expenseView(id) {
       <button class="iconbtn" data-act="delete-expense" data-id="${id}" aria-label="Delete">${icon('trash')}</button><button class="iconbtn" data-act="sheet" data-sheet="expense" data-id="${id}" aria-label="Edit">${icon('edit')}</button></div>
       <div class="xicon">${icon(c.icon, 54)}</div></div>
     <div class="xt"><div class="xtitle">${esc(e.description)}</div><div class="xamt">${money(e.amount)}</div>
-      <div class="xmeta">Added by you on ${prettyDate(e.date)}${(e.groupId && store.getRecord('groups', e.groupId)) ? ' · ' + esc(store.getRecord('groups', e.groupId).name) : ''}</div></div>
+      <div class="xmeta">Added${e.createdBy ? ' by ' + (e.createdBy === ME ? 'you' : esc(who(e.createdBy))) : ''} on ${prettyDate(e.date)}${(e.groupId && store.getRecord('groups', e.groupId)) ? ' · ' + esc(store.getRecord('groups', e.groupId).name) : ''}</div></div>
     <div class="payer">${avatar(e.payer)}<div>${esc(who(e.payer))} paid ${money(e.amount)}</div></div>
     <div class="tree"><div class="tl">${esc(who(e.payer))} paid ${money(e.amount)}${own > 0 ? ` and ${e.payer === ME ? 'owe' : 'owes'} ${money(own)}` : ''}</div>${others}</div>
     ${e.notes ? `<div class="xnotes">${esc(e.notes).replace(/\n/g, '<br>')}</div>` : ''}`;

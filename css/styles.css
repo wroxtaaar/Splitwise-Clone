@@ -237,3 +237,7 @@ body { font-size: 14px; line-height: 1.35; }
 .auth .btn.block { margin-top: 6px; }
 .syncchip { align-self: center; font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--surface); color: var(--neg); border: 1px solid var(--line); margin-right: 4px; }
 .syncchip[hidden] { display: none; }
+
+/* Dark mode: the Splitwise-scale colours above lose to the base dark rules, so restate them with the same weight. */
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --accent: #1ca585; --pos: #62cdae; --line: #34393c; --muted: #a2a8ac; } }
+:root[data-theme='dark'] { --accent: #1ca585; --pos: #62cdae; --line: #34393c; --muted: #a2a8ac; }
