@@ -53,6 +53,9 @@ jobs:
       - name: Generate Android project
         run: npx cap add android
 
+      - name: Generate launcher icons
+        run: npx @capacitor/assets generate --android
+
       - name: Add Firebase (push notifications)
         run: |
           if [ ! -f firebase/google-services.json ]; then
