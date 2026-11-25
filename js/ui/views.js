@@ -160,6 +160,9 @@ export function accountView() {
     ${pushSupported() ? `<div class="card"><h3>Notifications</h3><div class="hint" style="margin:0 0 10px" id="pushStatus">${esc(pushLabel())}</div><div class="btn-row"><button type="button" class="btn" data-act="enable-push">Turn on / check</button></div></div>` : ''}
     <div class="card"><h3>Backup</h3><div class="btn-row"><button class="btn" data-act="export">Export JSON</button><button class="btn" data-act="import">Restore JSON</button></div>
       <input type="file" id="importFile" accept="application/json" hidden></div>
+    <div class="card"><h3>Import history</h3><div class="hint" style="margin:0 0 10px">Bring in a group exported from Splitwise (one CSV file per group).</div>
+      <div class="btn-row"><button class="btn" data-act="import-csv">Import Splitwise CSV</button></div>
+      <input type="file" id="importCsv" accept=".csv,text/csv,text/comma-separated-values,application/vnd.ms-excel" multiple hidden></div>
   </div>`;
   return { bar: rootBar('Account'), body, fab: false };
 }

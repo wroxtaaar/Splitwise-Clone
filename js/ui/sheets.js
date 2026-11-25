@@ -2,6 +2,7 @@
 import { ME, toMinor, computeSplits, allocate } from '../logic.js';
 import * as store from '../store.js';
 import * as m from '../model.js';
+import { toRecords } from '../importer.js';
 import { esc, icon, money, today, toast, confirmDialog, avatarStyle, initial } from './util.js';
 
 export const sheetOpen = () => document.querySelector('.overlay') !== null;
@@ -23,7 +24,7 @@ function present(title, body, onSave) {
 }
 
 export function openSheet(kind, opts = {}) {
-  ({ expense: expenseSheet, settle: settleSheet, group: groupSheet, friend: friendSheet })[kind]?.(opts);
+  ({ expense: expenseSheet, settle: settleSheet, group: groupSheet, friend: friendSheet, import: importSheet })[kind]?.(opts);
 }
 
 const everyone = () => [store.getRecord('people', ME), ...m.friends()];
@@ -225,4 +226,51 @@ function friendSheet({ id }) {
     }
   });
   if (!editing) form.elements.name.focus();
+}
+
+// ---------------- import a Splitwise CSV (one group per file) ----------------
+const cleanGroupName = (file) => file.replace(/\.csv$/i, '').replace(/[_-]?(export|\d{4}-\d{2}-\d{2})/gi, '').replace(/[_-]+/g, ' ').trim()
+  .replace(/\b\w/g, (c) => c.toUpperCase());
+
+function importSheet({ queue }) {
+  const item = queue[0];
+  if (!item) return;
+  const { parsed, fileName } = item;
+  const people = everyone();
+  const used = new Set();
+  const guess = parsed.members.map((name) => {
+    const w = name.toLowerCase().split(/\s+/)[0];
+    const hit = people.find((p) => !used.has(p.id) && p.name && (p.name.toLowerCase().includes(w) || w.includes(p.name.toLowerCase())));
+    if (hit) used.add(hit.id);
+    return hit?.id || null;
+  }).map((id) => id || people.find((p) => !used.has(p.id) && (used.add(p.id), true))?.id || 'new');
+  const dates = parsed.rows.map((r) => r.date).sort();
+  const groupName = cleanGroupName(fileName) || 'Imported group';
+  const pick = (selected) => `${people.map((p) => `<option value="${p.id}" ${p.id === selected ? 'selected' : ''}>${esc(nameOf(p))}</option>`).join('')}<option value="new" ${selected === 'new' ? 'selected' : ''}>Add as a new person</option>`;
+  const { form, layer } = present(`Import from Splitwise${queue.length > 1 ? ` (${queue.length} files left)` : ''}`, `
+    <div class="hint" style="margin:0 0 12px">${esc(fileName)}: ${parsed.rows.length} rows${dates.length ? `, ${dates[0]} to ${dates.at(-1)}` : ''}.</div>
+    <div class="field"><label for="i_name">Group name</label><input class="input" id="i_name" name="name" maxlength="50" value="${esc(groupName)}" autocomplete="off"></div>
+    ${parsed.members.map((name, i) => `<div class="field"><label for="i_m${i}">${esc(name)} in Splitwise is…</label><select class="select" id="i_m${i}" name="m${i}">${pick(guess[i])}</select></div>`).join('')}
+    <small class="note">Importing the same file again updates the same entries instead of adding them twice. Old expenses do not send notifications once <b>supabase/push.sql</b> has been re-run.</small>`,
+  (f) => {
+    const name = f.elements.name.value.trim();
+    if (!name) { toast('Give the group a name'); return false; }
+    const chosen = parsed.members.map((_, i) => f.elements[`m${i}`].value);
+    const real = chosen.filter((v) => v !== 'new');
+    if (new Set(real).size !== real.length) { toast('Each Splitwise person needs a different person here'); return false; }
+    const idOf = {};
+    parsed.members.forEach((mn, i) => { idOf[mn] = chosen[i] === 'new' ? store.put('people', { name: mn }) : chosen[i]; });
+    const memberIds = Object.values(idOf);
+    const existing = m.allGroups().find((g) => g.name.trim().toLowerCase() === name.toLowerCase());
+    const groupId = store.put('groups', { id: existing?.id, name, members: [...new Set([...(existing?.members || []), ME, ...memberIds])] });
+    const { expenses, settlements, problems } = toRecords(parsed, { groupId, idOf });
+    store.putMany('expenses', expenses);
+    store.putMany('settlements', settlements);
+    toast(`Imported ${expenses.length} expenses and ${settlements.length} payments${problems.length ? `, ${problems.length} skipped` : ''}`);
+    if (problems.length) console.warn('Splitwise import skipped:\n' + problems.join('\n'));
+    queue.shift();
+    if (queue.length) setTimeout(() => importSheet({ queue }), 350);
+  });
+  layer.querySelector('.save').textContent = 'Import';
+  void form;
 }

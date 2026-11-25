@@ -69,6 +69,17 @@ export function put(coll, rec) {
   return id;
 }
 
+/** Add many records at once (an import): one change event instead of one per record. */
+export function putMany(coll, recs) {
+  const now = Date.now();
+  for (const rec of recs) {
+    const before = state[coll][rec.id];
+    state[coll][rec.id] = { ...before, ...rec, deleted: false, createdAt: rec.createdAt || before?.createdAt || now, updatedAt: Math.max(now, (before?.updatedAt || 0) + 1) };
+    mark(coll, rec.id);
+  }
+  emit('local');
+}
+
 function tombstone(coll, id, now) {
   const r = state[coll][id];
   if (r && !r.deleted) {

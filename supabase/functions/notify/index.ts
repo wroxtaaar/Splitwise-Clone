@@ -59,6 +59,7 @@ export async function handle(req, fetchFn = fetch) {
   if (!secret || req.headers.get('x-push-secret') !== secret) return new Response('forbidden', { status: 403 });
   const evt = await req.json();
   if (!evt || !evt.actor || !['expenses', 'settlements'].includes(evt.coll)) return new Response('ignored');
+  if (evt.data?.imported) return new Response('ignored'); // imported history never notifies
 
   const base = env('SUPABASE_URL'), key = env('SUPABASE_SERVICE_ROLE_KEY');
   const sb = (path, init = {}) => fetchFn(`${base}/rest/v1/${path}`, { ...init, headers: { apikey: key, Authorization: `Bearer ${key}`, ...init.headers } });

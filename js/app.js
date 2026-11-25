@@ -5,6 +5,7 @@ import * as sync from './sync.js';
 import * as notif from './push.js';
 import * as views from './ui/views.js';
 import { openSheet, sheetOpen, closeSheets } from './ui/sheets.js';
+import { parseSplitwise } from './importer.js';
 import { icon, toast, confirmDialog } from './ui/util.js';
 
 // mode: which full-screen state the app is in. Only 'app' shows the tabs and lists.
@@ -205,6 +206,7 @@ document.addEventListener('click', async (e) => {
     case 'retry-boot': { const s = auth.getSession(); if (s) { showSplash('Setting up…'); enter(s); } else showLogin(); break; }
     case 'export': exportBackup(); break;
     case 'import': document.getElementById('importFile').click(); break;
+    case 'import-csv': document.getElementById('importCsv').click(); break;
   }
 });
 
@@ -246,6 +248,17 @@ document.addEventListener('submit', async (e) => {
 });
 
 document.addEventListener('change', async (e) => {
+  if (e.target.id === 'importCsv') {
+    const files = [...e.target.files];
+    e.target.value = '';
+    const queue = [];
+    for (const file of files) {
+      try { queue.push({ fileName: file.name, parsed: parseSplitwise(await file.text()) }); }
+      catch (err) { toast(`${file.name}: ${err.message}`); }
+    }
+    if (queue.length) openSheet('import', { queue });
+    return;
+  }
   if (e.target.id !== 'importFile') return;
   const file = e.target.files[0];
   e.target.value = '';

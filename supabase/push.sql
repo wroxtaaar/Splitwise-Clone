@@ -49,6 +49,7 @@ declare
   kind text;
 begin
   if new.coll not in ('expenses', 'settlements') then return null; end if;
+  if coalesce(new.data ->> 'imported', '') = 'true' then return null; end if;   -- imported history never notifies
   if tg_op = 'INSERT' then
     if not new.deleted then kind := 'added'; end if;
   elsif new.deleted and not old.deleted then

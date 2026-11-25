@@ -15,6 +15,14 @@ layout, no limits on how many expenses you add. Works offline and syncs automati
 - Amounts are stored as whole paise, so there are no rounding errors
 - Android APK built by GitHub Actions (Capacitor)
 
+## Import your Splitwise history
+
+In Splitwise (web): open a group → Export as spreadsheet (CSV). In this app: Account → Import history → Import Splitwise CSV,
+pick one or several files, name each group and say which Splitwise name is you. Expenses and payments are created with the
+same payer and shares; importing the same file twice does not duplicate anything.
+**Before the first import**, re-run `supabase/push.sql` (and redeploy the `notify` function) once, so imported history does not
+send a notification per expense.
+
 ## Set up sync (one time, about 10 minutes)
 
 1. Create a free project at [supabase.com](https://supabase.com). Wait until it finishes starting.
