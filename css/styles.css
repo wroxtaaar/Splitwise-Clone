@@ -340,3 +340,114 @@ body { font-size: 14px; line-height: 1.35; }
 @media (min-width: 521px) {
   .banner { min-height: 200px; }
 }
+
+
+/* Activity tab: Splitwise-style stacked activity feed. */
+.activity-content { padding-top: 12px; }
+.activity-heading {
+  margin: 8px 0 14px;
+  font-size: 21px;
+  line-height: 1.25;
+  font-weight: 500;
+  color: var(--text);
+}
+.activity-row {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 9px 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.activity-art {
+  position: relative;
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  display: block;
+}
+.activity-art .tile {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 2px;
+}
+.activity-art .tile svg { width: 27px; height: 27px; }
+.activity-avatar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--bg);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  overflow: hidden;
+}
+.activity-avatar.activity-me {
+  background: conic-gradient(#ff7a45 0 25%, #ffb199 25% 40%, #ff5722 40% 70%, #ff9a72 70% 100%);
+}
+.activity-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.activity-title {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.38;
+  font-weight: 500;
+  color: var(--text);
+}
+.activity-balance {
+  display: block;
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 400;
+}
+.activity-time {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+.activity-payment {
+  align-items: center;
+  min-height: 70px;
+}
+.activity-symbol {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  color: var(--muted);
+}
+.activity-payment .activity-main { gap: 1px; }
+.activity-payment .activity-title { font-weight: 400; }
+.activity-amount {
+  flex: 0 0 auto;
+  align-self: center;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+@media (min-width: 521px) {
+  .activity-content { max-width: 520px; margin: 0 auto; }
+}
