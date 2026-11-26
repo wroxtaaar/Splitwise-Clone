@@ -24,7 +24,7 @@ function present(title, body, onSave) {
 }
 
 export function openSheet(kind, opts = {}) {
-  ({ expense: expenseSheet, settle: settleSheet, group: groupSheet, friend: friendSheet, import: importSheet })[kind]?.(opts);
+  ({ expense: expenseSheet, settle: settleSheet, group: groupSheet, members: membersSheet, friend: friendSheet, import: importSheet })[kind]?.(opts);
 }
 
 const everyone = () => [store.getRecord('people', ME), ...m.friends()];
@@ -237,6 +237,32 @@ function friendSheet({ id }) {
     }
   });
   if (!editing) form.elements.name.focus();
+}
+
+// ---------------- group members: see and rename ----------------
+function membersSheet({ id }) {
+  const g = store.getRecord('groups', id);
+  if (!g) return;
+  const list = g.members.map((pid) => store.getRecord('people', pid)).filter(Boolean);
+  const row = (p) => p.id === ME
+    ? `<div class="row" style="border:0"><div class="avatar" style="${avatarStyle(p.id)}">${esc(initial(p.name))}</div><div class="main"><div class="title">You</div><div class="muted">Change your own name under Account → Profile</div></div></div>`
+    : `<div class="row" style="border:0"><div class="avatar" style="${avatarStyle(p.id)}">${esc(initial(p.name))}</div><div class="main"><input class="input" data-pid="${p.id}" value="${esc(p.name)}" maxlength="40" autocomplete="off" aria-label="Name"></div></div>`;
+  present(`${g.name}: people`, list.map(row).join('') + '<div class="hint">Renaming changes the name everywhere (all groups and expenses).</div>', (f) => {
+    const inputs = [...f.querySelectorAll('[data-pid]')];
+    const names = new Set(list.filter((p) => !inputs.some((i) => i.dataset.pid === p.id)).map((p) => (p.name || '').toLowerCase()));
+    for (const i of inputs) {
+      const name = i.value.trim();
+      if (!name) { toast('Names cannot be empty'); return false; }
+      if (names.has(name.toLowerCase())) { toast(`Two people are called ${name}`); return false; }
+      names.add(name.toLowerCase());
+    }
+    let changed = 0;
+    inputs.forEach((i) => {
+      const p = store.getRecord('people', i.dataset.pid);
+      if (p && p.name !== i.value.trim()) { store.put('people', { id: p.id, name: i.value.trim() }); changed += 1; }
+    });
+    if (changed) toast('Renamed');
+  });
 }
 
 // ---------------- import a Splitwise CSV (one group per file) ----------------
