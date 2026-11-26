@@ -459,9 +459,6 @@ body { font-family: Lato, system-ui, -apple-system, 'Segoe UI', Roboto, sans-ser
 .group-expenses .month { display: none; }
 .tab { letter-spacing: .04em; }
 .banner h1 { font-size: clamp(28px, 8vw, 33px); }
-.topbar::after, .banner::after { content: ''; position: absolute; left: 50%; top: 100%; width: 30px; height: 10px; margin-left: -15px; border-radius: 0 0 15px 15px; background: #fff; z-index: 7; pointer-events: none; }
-.banner { overflow: visible; }
-.banner::before { overflow: hidden; }
 
 /* ===== round 2: sizes from the real app ===== */
 .group-name { font-size: 16px; font-weight: 500; }
