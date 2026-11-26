@@ -123,9 +123,9 @@ function friendBreakdown(friendId) {
     const line = summary.lines.find((l) => l.id === friendId);
     if (!line || line.amount === 0) return;
     const text = line.amount > 0
-      ? `${esc(who(friendId))} owes you <b class="pos">${money(line.amount)}</b>`
-      : `You owe ${esc(who(friendId))} <b class="neg">${money(-line.amount)}</b>`;
-    out.push(`<div class="sub">${text} for “${esc(name)}”</div>`);
+      ? `${esc(who(friendId))} owes you ${money(line.amount)}`
+      : `You owe ${esc(who(friendId))} ${money(-line.amount)}`;
+    out.push(`<div class="tl">${text} for “${esc(name)}”</div>`);
   };
   m.allGroups().forEach((g) => add(g.name, m.groupSummary(g.id)));
   add('non-group expenses', m.groupSummary(m.NO_GROUP));
@@ -140,13 +140,13 @@ export function friendsView(ui = {}) {
   const shown = ui.showSettledFriends ? all : open;
   const rowOf = (f) => `<button class="row" data-act="open" data-view="friend" data-id="${f.id}">
     <div class="avatar" style="${avatarStyle(f.id)}">${esc(initial(f.name))}</div>
-    <div class="main"><div class="title">${esc(f.name)}</div>${friendBreakdown(f.id)}</div>
-    <div class="end">${balanceEnd(o.balances[f.id] || 0)}</div></button>`;
+    <div class="main"><div class="title">${esc(f.name)}</div></div>
+    <div class="end">${balanceEnd(o.balances[f.id] || 0)}</div></button><div class="tree">${friendBreakdown(f.id)}</div>`;
   const toggle = settled.length
-    ? `<div class="hint" style="text-align:center;margin-top:18px">${ui.showSettledFriends ? '' : 'Hiding friends that are settled up.'}</div>
+    ? `<div class="hint" style="text-align:center;margin-top:18px">${ui.showSettledFriends ? '' : 'Hiding friends that have been settled up over one month.'}</div>
        <button class="pill-btn" data-act="toggle-settled-friends">${ui.showSettledFriends ? 'Hide settled-up friends' : `Show ${settled.length} settled-up friend${settled.length === 1 ? '' : 's'}`}</button>`
     : '';
-  const body = `<div class="content"><div class="overall"><div class="grow">${overallLine()}</div></div>
+  const body = `<div class="content"><div class="overall"><div class="grow">${overallLine()}</div>${iconBtn('filter', 'data-act="toggle-settled-friends"', 'Show or hide settled-up friends')}</div>
     ${shown.map(rowOf).join('') || empty(all.length ? 'All settled up' : 'No friends yet', all.length ? 'Nobody owes anything.' : 'Add a friend to start sharing expenses.')}
     ${toggle}
     <button class="pill-btn" data-act="sheet" data-sheet="friend">${icon('userPlus', 22)} Add a friend</button></div>`;

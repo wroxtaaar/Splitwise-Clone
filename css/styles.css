@@ -451,3 +451,25 @@ body { font-size: 14px; line-height: 1.35; }
 @media (min-width: 521px) {
   .activity-content { max-width: 520px; margin: 0 auto; }
 }
+
+/* ===== Match the real app: Lato type, lighter mint for positives, top notch, no month headers ===== */
+body { font-family: Lato, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; letter-spacing: .015em; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --pos: #a9e4d2; } }
+:root[data-theme='dark'] { --pos: #a9e4d2; }
+.group-expenses .month { display: none; }
+.tab { letter-spacing: .04em; }
+.banner h1 { font-size: clamp(28px, 8vw, 33px); }
+.topbar::after, .banner::after { content: ''; position: absolute; left: 50%; top: 100%; width: 30px; height: 10px; margin-left: -15px; border-radius: 0 0 15px 15px; background: #fff; z-index: 7; pointer-events: none; }
+.banner { overflow: visible; }
+.banner::before { overflow: hidden; }
+
+/* ===== round 2: sizes from the real app ===== */
+.group-name { font-size: 16px; font-weight: 500; }
+.group-line { font-size: 14px; } .group-line.strong { font-size: 16px; }
+.banner { min-height: 176px; } .banner h1 { font-size: clamp(28px, 8.4vw, 34px); }
+.pills button { font-size: 15px; }
+.activity-heading { margin-top: 22px; }
+.activity-title, .activity-balance { font-size: 15px; } .activity-time { font-size: 13px; }
+.row .title { font-size: 16px; }
+.avatar { width: 42px; height: 42px; flex-basis: 42px; }
+.tree { margin: 0 0 8px 37px; } .tl { font-size: 14px; opacity: .75; }
