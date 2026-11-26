@@ -110,7 +110,7 @@ export function toRecords(parsed, { groupId, idOf }) {
       id: idFor(row), createdBy: idOf[names[payer]], description: title,
       notes: lines.length > 1 || title !== lines[0] ? lines.join('\n') : '',
       amount: row.cost, payer: idOf[names[payer]], groupId, date: row.date,
-      splitType: 'exact', splitValues, splits, imported: true, createdAt: noonOf(row.date),
+      splitType: 'exact', splitValues, splits, category: row.category, imported: true, createdAt: noonOf(row.date),
     });
   }
   return { expenses, settlements, problems };

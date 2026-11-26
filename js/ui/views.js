@@ -45,12 +45,19 @@ function effectEnd(effect) {
   return 'no balance';
 }
 
+/** One line for lists: an imported multi-line description shows only its first line, then "…". */
+export function listTitle(e) {
+  const lines = String(e.notes || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (e.imported && lines.length > 1) return `${lines[0]}…`;
+  return e.description;
+}
+
 function expenseRow(e, { effect, showGroup = true } = {}) {
   const g = e.groupId && store.getRecord('groups', e.groupId);
   const eff = effect === undefined ? m.myEffectOn(e) : effect;
   return `<button class="row" data-act="open" data-view="expense" data-id="${e.id}">
-    <div class="datebox">${monthShort(e.date)}<b>${dayOf(e.date)}</b></div>${catTile(e.description)}
-    <div class="main"><div class="title">${esc(e.description)}</div>
+    <div class="datebox">${monthShort(e.date)}<b>${dayOf(e.date)}</b></div>${catTile(e.description, 44, 26, e.category)}
+    <div class="main"><div class="title">${esc(listTitle(e))}</div>
     <div class="sub">${who(e.payer)} paid ${money(e.amount)}${showGroup && g ? ' · ' + esc(g.name) : ''}</div></div>
     <div class="end">${effectEnd(eff)}</div></button>`;
 }
@@ -109,14 +116,39 @@ export function groupsView(ui) {
   return { bar: rootBar('', searchBtn() + addFriendBtn()), body, fab: true };
 }
 
-export function friendsView() {
+/** Per-group balances between me and one friend, e.g. "Papa owes you ₹39,239.00 for “Ghar Ka Saman”". */
+function friendBreakdown(friendId) {
+  const out = [];
+  const add = (name, summary) => {
+    const line = summary.lines.find((l) => l.id === friendId);
+    if (!line || line.amount === 0) return;
+    const text = line.amount > 0
+      ? `${esc(who(friendId))} owes you <b class="pos">${money(line.amount)}</b>`
+      : `You owe ${esc(who(friendId))} <b class="neg">${money(-line.amount)}</b>`;
+    out.push(`<div class="sub">${text} for “${esc(name)}”</div>`);
+  };
+  m.allGroups().forEach((g) => add(g.name, m.groupSummary(g.id)));
+  add('non-group expenses', m.groupSummary(m.NO_GROUP));
+  return out.join('');
+}
+
+export function friendsView(ui = {}) {
   const o = m.overall();
-  const list = m.friends().map((f) => `<button class="row" data-act="open" data-view="friend" data-id="${f.id}">
+  const all = m.friends();
+  const open = all.filter((f) => (o.balances[f.id] || 0) !== 0);
+  const settled = all.filter((f) => (o.balances[f.id] || 0) === 0);
+  const shown = ui.showSettledFriends ? all : open;
+  const rowOf = (f) => `<button class="row" data-act="open" data-view="friend" data-id="${f.id}">
     <div class="avatar" style="${avatarStyle(f.id)}">${esc(initial(f.name))}</div>
-    <div class="main"><div class="title">${esc(f.name)}</div></div>
-    <div class="end">${balanceEnd(o.balances[f.id] || 0)}</div></button>`).join('');
+    <div class="main"><div class="title">${esc(f.name)}</div>${friendBreakdown(f.id)}</div>
+    <div class="end">${balanceEnd(o.balances[f.id] || 0)}</div></button>`;
+  const toggle = settled.length
+    ? `<div class="hint" style="text-align:center;margin-top:18px">${ui.showSettledFriends ? '' : 'Hiding friends that are settled up.'}</div>
+       <button class="pill-btn" data-act="toggle-settled-friends">${ui.showSettledFriends ? 'Hide settled-up friends' : `Show ${settled.length} settled-up friend${settled.length === 1 ? '' : 's'}`}</button>`
+    : '';
   const body = `<div class="content"><div class="overall"><div class="grow">${overallLine()}</div></div>
-    ${list || empty('No friends yet', 'Add a friend to start sharing expenses.')}
+    ${shown.map(rowOf).join('') || empty(all.length ? 'All settled up' : 'No friends yet', all.length ? 'Nobody owes anything.' : 'Add a friend to start sharing expenses.')}
+    ${toggle}
     <button class="pill-btn" data-act="sheet" data-sheet="friend">${icon('userPlus', 22)} Add a friend</button></div>`;
   return { bar: rootBar('', searchBtn() + addFriendBtn()), body, fab: true };
 }
@@ -134,7 +166,7 @@ export function activityView() {
     const line = eff == null ? 'You are not involved' : eff > 0 ? `You get back ${money(eff)}` : `You owe ${money(-eff)}`;
     return `<button class="row" data-act="open" data-view="expense" data-id="${r.id}">
       <div class="art small" style="${artStyle(r.groupId || r.id)}">${icon('receipt', 22)}</div>
-      <div class="main"><div class="title">You added “${esc(r.description)}”${g ? ' in ' + esc(g.name) : ''}</div>
+      <div class="main"><div class="title">${esc(who(r.createdBy || r.payer))} ${r.updatedAt - (r.createdAt || r.updatedAt) > 60000 ? 'updated' : 'added'} “${esc(listTitle(r))}”${g ? ' in ' + esc(g.name) : ''}</div>
       <div class="sub ${eff > 0 ? 'pos' : eff < 0 ? 'neg' : ''}">${line}</div></div>
       <div class="end">${prettyDate(r.date)}</div></button>`;
   }).join('');
@@ -208,7 +240,7 @@ export function friendView(id) {
 export function expenseView(id) {
   const e = store.getRecord('expenses', id);
   if (!e) return null;
-  const c = cat(e.description);
+  const c = cat(e.description, e.category);
   const own = (e.splits || {})[e.payer] || 0;
   const avatar = (pid) => (pid === ME ? '<div class="avatar mepie"></div>' : `<div class="avatar" style="${avatarStyle(pid)}">${esc(initial(who(pid)))}</div>`);
   const others = Object.entries(e.splits || {}).filter(([pid, owed]) => pid !== e.payer && owed > 0)

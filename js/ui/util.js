@@ -84,9 +84,17 @@ export function confirmDialog(message, okLabel = 'Delete') {
 }
 
 /** Category look (icon + pastel tile), guessed from the description like Splitwise does. */
-export function cat(text) {
+export function cat(text, category = '') {
   const t = String(text || '').toLowerCase();
   const pick = (icon, bg) => ({ icon, bg });
+  const c = String(category || '').toLowerCase();
+  if (/grocer|supermarket|shopping|clothing/.test(c)) return pick('cart', '#d6efdc');
+  if (/dining|food|drink|restaurant|liquor/.test(c)) return pick('food', '#d6efdc');
+  if (/electric|utilit|heat|water|trash/.test(c)) return pick('bolt', '#c6e5f0');
+  if (/internet|wifi|phone|tv\b/.test(c)) return pick('wifi', '#c6e5f0');
+  if (/gas|fuel|petrol/.test(c)) return pick('fuel', '#f4cadb');
+  if (/taxi|car|parking|transport|bus|train|plane|bicycle/.test(c)) return pick('car', '#f4cadb');
+  if (/rent|mortgage|household|home|furniture|maintenance/.test(c)) return pick('home', '#e0d6f3');
   if (/wifi|internet|broadband|recharge/.test(t)) return pick('wifi', '#c6e5f0');
   if (/electric|bijli|light bill|current/.test(t)) return pick('bolt', '#c6e5f0');
   if (/saman|grocer|kirana|sabzi|shop|mart|cart|fruit/.test(t)) return pick('cart', '#d6efdc');
@@ -96,4 +104,4 @@ export function cat(text) {
   if (/rent|house|home|flat/.test(t)) return pick('home', '#e0d6f3');
   return pick('receipt', '#e5e6ee');
 }
-export const catTile = (text, size = 44, glyph = 26) => { const c = cat(text); return `<div class="tile" style="background:${c.bg};width:${size}px;height:${size}px">${icon(c.icon, glyph)}</div>`; };
+export const catTile = (text, size = 44, glyph = 26, category = '') => { const c = cat(text, category); return `<div class="tile" style="background:${c.bg};width:${size}px;height:${size}px">${icon(c.icon, glyph)}</div>`; };

@@ -81,3 +81,9 @@ test('two identical rows on one day stay two expenses', () => {
 test('a file that is not a Splitwise export is refused', () => {
   assert.throws(() => parseSplitwise('a,b\n1,2'), /Splitwise/);
 });
+
+test('imported expenses keep their Splitwise category', () => {
+  const { expenses } = toRecords(parseSplitwise(CSV), { groupId: 'g1', idOf });
+  const dinner = expenses.find((e) => e.description.startsWith('Dinner'));
+  assert.equal(dinner.category, 'Dining out');
+});

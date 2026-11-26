@@ -216,6 +216,7 @@ document.addEventListener('click', async (e) => {
     case 'open': push({ view: d.view, id: d.id }); break;
     case 'back': history.back(); break;
     case 'sheet': openSheet(d.sheet, { id: d.id, groupId: d.group, friendId: d.friend }); break;
+    case 'toggle-settled-friends': ui.showSettledFriends = !ui.showSettledFriends; render(); break;
     case 'toggle-settled': ui.hideSettled = !ui.hideSettled; toast(ui.hideSettled ? 'Hiding settled groups' : 'Showing all groups'); render(); break;
     case 'theme': store.setSettings({ theme: d.v }); break;
     case 'delete-expense':
