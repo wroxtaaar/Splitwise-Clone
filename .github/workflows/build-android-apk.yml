@@ -6,15 +6,18 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: android-apk-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+
 jobs:
   build:
-    name: Build debug APK
+    name: Build APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -66,19 +69,53 @@ jobs:
           sed -i 's#<application#<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <application#' android/app/src/main/AndroidManifest.xml
           grep -q POST_NOTIFICATIONS android/app/src/main/AndroidManifest.xml
 
+      - name: Add the self-updater (native plugin + permission)
+        run: |
+          pkgdir=android/app/src/main/java/com/wroxtaaar/splits
+          mkdir -p "$pkgdir"
+          cp native/ApkUpdater.java native/MainActivity.java "$pkgdir/"
+          sed -i 's#<application#<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\n    <application#' android/app/src/main/AndroidManifest.xml
+          grep -q REQUEST_INSTALL_PACKAGES android/app/src/main/AndroidManifest.xml
+
       - name: Sync web app into Android project
         run: npx cap sync android
 
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Sign with the permanent key (when the keystore secret exists)
+        if: env.KS_B64 != ''
+        run: |
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/expense.p12"
+          cat >> android/app/build.gradle <<EOF
+
+          android {
+              defaultConfig {
+                  versionCode ${{ github.run_number }}
+                  versionName "1.${{ github.run_number }}"
+              }
+              signingConfigs {
+                  release {
+                      storeFile file("$RUNNER_TEMP/expense.p12")
+                      storePassword "expense-ks"
+                      keyAlias "expense"
+                      keyPassword "expense-ks"
+                  }
+              }
+              buildTypes {
+                  release { signingConfig signingConfigs.release }
+              }
+          }
+          EOF
+
       - name: Build APK
         working-directory: android
         run: |
           chmod +x gradlew
+          if [ -n "$KS_B64" ]; then TASK=assembleRelease; else TASK=assembleDebug; fi
           for attempt in 1 2 3; do
-            echo "Gradle build attempt $attempt/3"
-            if ./gradlew assembleDebug --no-daemon --max-workers=2; then
+            echo "Gradle build attempt $attempt/3 ($TASK)"
+            if ./gradlew $TASK --no-daemon --max-workers=2; then
               exit 0
             fi
             if [ "$attempt" -lt 3 ]; then
@@ -88,10 +125,25 @@ jobs:
           done
           exit 1
 
+      - name: Collect APK
+        run: |
+          mkdir -p out
+          cp "$(ls android/app/build/outputs/apk/release/*.apk android/app/build/outputs/apk/debug/*.apk 2>/dev/null | head -1)" out/Expense.apk
+
       - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
           name: Expense-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: out/Expense.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish update (GitHub release "latest")
+        if: env.KS_B64 != '' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(sha256sum out/Expense.apk | cut -d' ' -f1)
+          echo "{\"versionCode\": ${{ github.run_number }}, \"sha256\": \"$sha\"}" > out/version.json
+          gh release view latest >/dev/null 2>&1 || gh release create latest --title "Latest build" --notes "Auto-updated by CI. The Expense app downloads this." --latest
+          gh release upload latest out/Expense.apk out/version.json --clobber

@@ -3,6 +3,7 @@ import * as store from './store.js';
 import * as auth from './auth.js';
 import * as sync from './sync.js';
 import * as notif from './push.js';
+import * as updater from './updater.js';
 import * as views from './ui/views.js';
 import { openSheet, sheetOpen, closeSheets } from './ui/sheets.js';
 import { parseSplitwise } from './importer.js';
@@ -157,6 +158,22 @@ async function enter(session) {
   }
   if (ui.mode !== 'app') showApp();
   startPush();
+  runUpdate(false);
+}
+
+let updating = false;
+async function runUpdate(manual) {
+  if (!updater.supported() || updating) return;
+  const say = (t) => { const el = document.getElementById('updateStatus'); if (el) el.textContent = t; if (manual) toast(t); };
+  try {
+    const info = await updater.check();
+    if (!info.newer) { say(`Up to date (build ${info.installed}).`); return; }
+    updating = true;
+    say(`Updating to build ${info.latest}… the app will restart.`);
+    await updater.install(info);
+  } catch (e) {
+    if (manual || String(e?.message || e).includes('needs_permission')) say(updater.explain(e));
+  } finally { updating = false; }
 }
 
 function startPush() {
@@ -219,6 +236,7 @@ document.addEventListener('click', async (e) => {
       toast(sync.statusText());
       break;
     case 'enable-push': startPush(); break;
+    case 'check-update': runUpdate(true); break;
     case 'sign-out':
       if (ui.mode !== 'app' || await confirmDialog('Sign out of this phone? Your data stays safe on the server.', 'Sign out')) { await notif.stop(); leaveToLogin(); }
       break;
