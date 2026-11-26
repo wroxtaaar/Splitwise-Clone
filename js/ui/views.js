@@ -41,7 +41,7 @@ function balanceEnd(amount) {
 function effectEnd(effect) {
   if (effect == null) return 'not involved';
   if (effect > 0) return `you lent<b class="pos">${money(effect)}</b>`;
-  if (effect < 0) return `you borrowed<b class="neg">${money(-effect)}</b>`;
+  if (effect < 0) return `<span class="neg">you borrowed</span><b class="neg">${money(-effect)}</b>`;
   return 'no balance';
 }
 
