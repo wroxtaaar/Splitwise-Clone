@@ -5,7 +5,7 @@ import * as sync from './sync.js';
 import * as notif from './push.js';
 import * as updater from './updater.js';
 import * as views from './ui/views.js';
-import { openSheet, sheetOpen, closeSheets } from './ui/sheets.js';
+import { openSheet, sheetOpen, closeSheets, closeTopSheet } from './ui/sheets.js';
 import { parseSplitwise } from './importer.js';
 import { icon, toast, confirmDialog } from './ui/util.js';
 
@@ -75,8 +75,8 @@ history.replaceState({ d: -1 }, '');
 history.pushState({ d: 0 }, '');
 window.addEventListener('popstate', (e) => {
   if (ui.mode !== 'app') return;
-  if (sheetOpen()) { // back closes the sheet and stays on the same view
-    closeSheets();
+  if (sheetOpen()) { // back closes the top sheet and stays on the same view
+    closeTopSheet();
     history.pushState({ d: ui.nav.length }, '');
     return;
   }
@@ -103,7 +103,7 @@ window.addEventListener('popstate', (e) => {
   if (!App?.addListener) return;
   App.addListener('backButton', () => {
     if (ui.mode !== 'app') { App.exitApp(); return; }
-    if (sheetOpen()) { closeSheets(); return; }
+    if (sheetOpen()) { closeTopSheet(); return; }
     if (ui.nav.length) { ui.nav.pop(); render(); return; }
     if (ui.tab !== 'groups') { ui.tab = 'groups'; render(); window.scrollTo(0, 0); return; }
     App.exitApp();

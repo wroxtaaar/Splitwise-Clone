@@ -6,7 +6,7 @@ import * as store from '../store.js';
 import * as m from '../model.js';
 import { getStatus, statusText } from '../sync.js';
 import { getSession } from '../auth.js';
-import { esc, icon, money, dayOf, monthShort, monthLong, prettyDate, artStyle, avatarStyle, initial, cat, catTile } from './util.js';
+import { esc, icon, money, dayOf, monthShort, monthLong, prettyDate, artStyle, artTile, avatarStyle, initial, cat, catTile } from './util.js';
 
 const who = (id) => m.personName(id);
 const whoLower = (id) => m.personName(id, { you: 'you' });
@@ -33,14 +33,14 @@ function overallLine() {
 }
 
 function balanceEnd(amount) {
-  if (amount > 0) return `owes you<b class="pos">${money(amount)}</b>`;
-  if (amount < 0) return `you owe<b class="neg">${money(-amount)}</b>`;
+  if (amount > 0) return `<span class="pos">owes you</span><b class="pos">${money(amount)}</b>`;
+  if (amount < 0) return `<span class="neg">you owe</span><b class="neg">${money(-amount)}</b>`;
   return 'settled up';
 }
 
 function effectEnd(effect) {
   if (effect == null) return 'not involved';
-  if (effect > 0) return `you lent<b class="pos">${money(effect)}</b>`;
+  if (effect > 0) return `<span class="pos">you lent</span><b class="pos">${money(effect)}</b>`;
   if (effect < 0) return `<span class="neg">you borrowed</span><b class="neg">${money(-effect)}</b>`;
   return 'no balance';
 }
@@ -94,20 +94,20 @@ export function groupsView(ui) {
   const rows = m.allGroups().map((g) => ({ g, s: m.groupSummary(g.id) }));
   const visible = rows.filter(({ s }) => !ui.hideSettled || s.lines.length);
   const loose = m.groupSummary(m.NO_GROUP);
-  const hasLoose = loose.expenses.length || loose.settlements.length;
 
   const row = (id, name, s, art) => {
-    const head = s.net > 0 ? `<div class="group-line strong pos">you are owed ${money(s.net)}</div>`
+    const head = !s.expenses.length && !s.settlements.length ? `<div class="group-line strong">no expenses</div>`
+      : s.net > 0 ? `<div class="group-line strong pos">you are owed ${money(s.net)}</div>`
       : s.net < 0 ? `<div class="group-line strong neg">you owe ${money(-s.net)}</div>`
       : `<div class="group-line strong">${s.lines.length ? 'balanced out' : 'settled up'}</div>`;
     const lines = s.lines.slice(0, 2).map((l) =>
-      `<div class="group-line">${l.amount > 0 ? `${esc(who(l.id))} owes you ${money(l.amount)}` : `you owe ${esc(who(l.id))} ${money(-l.amount)}`}</div>`).join('');
+      `<div class="group-line">${l.amount > 0 ? `${esc(who(l.id))} owes you <span class="pos">${money(l.amount)}</span>` : `you owe ${esc(who(l.id))} <span class="neg">${money(-l.amount)}</span>`}</div>`).join('');
     const more = s.lines.length > 2 ? `<div class="group-line">plus ${s.lines.length - 2} other balance${s.lines.length > 3 ? 's' : ''}</div>` : '';
     return `<button class="group-row" data-act="open" data-view="group" data-id="${id}">${art}<div class="group-info"><div class="group-name">${esc(name)}</div>${head}${lines}${more}</div></button>`;
   };
 
-  const list = visible.map(({ g, s }) => row(g.id, g.name, s, `<div class="art" style="${artStyle(g.id)}">${icon(/home|ghar|house|flat|rent|room/i.test(g.name) ? 'home' : 'list', 38)}</div>`)).join('')
-    + (hasLoose ? row(m.NO_GROUP, 'Non-group expenses', loose, `<div class="art" style="background:linear-gradient(135deg,#1ec2a0 50%,#8a58d0 50%)">${icon('receipt', 36)}</div>`) : '');
+  const list = visible.map(({ g, s }) => row(g.id, g.name, s, artTile(g.id, icon(/home|ghar|house|flat|rent|room/i.test(g.name) ? 'home' : 'list', 46, 2.6)))).join('')
+    + (!ui.hideSettled || loose.lines.length ? row(m.NO_GROUP, 'Non-group expenses', loose, artTile(m.NO_GROUP, '', 'loose')) : '');
 
   const body = `<div class="content">
     <div class="overall"><div class="grow">${overallLine()}</div>${iconBtn('filter', 'data-act="toggle-settled"', ui.hideSettled ? 'Show settled groups' : 'Hide settled groups')}</div>
@@ -123,8 +123,8 @@ function friendBreakdown(friendId) {
     const line = summary.lines.find((l) => l.id === friendId);
     if (!line || line.amount === 0) return;
     const text = line.amount > 0
-      ? `${esc(who(friendId))} owes you ${money(line.amount)}`
-      : `You owe ${esc(who(friendId))} ${money(-line.amount)}`;
+      ? `${esc(who(friendId))} owes you <span class="pos">${money(line.amount)}</span>`
+      : `You owe ${esc(who(friendId))} <span class="neg">${money(-line.amount)}</span>`;
     out.push(`<div class="tl">${text} for “${esc(name)}”</div>`);
   };
   m.allGroups().forEach((g) => add(g.name, m.groupSummary(g.id)));
@@ -149,20 +149,20 @@ export function friendsView(ui = {}) {
   const body = `<div class="content"><div class="overall"><div class="grow">${overallLine()}</div>${iconBtn('filter', 'data-act="toggle-settled-friends"', 'Show or hide settled-up friends')}</div>
     ${shown.map(rowOf).join('') || empty(all.length ? 'All settled up' : 'No friends yet', all.length ? 'Nobody owes anything.' : 'Add a friend to start sharing expenses.')}
     ${toggle}
-    <button class="pill-btn" data-act="sheet" data-sheet="friend">${icon('userPlus', 22)} Add a friend</button></div>`;
+    <button class="pill-btn" data-act="sheet" data-sheet="friend">${icon('userPlus', 22)} ${all.length ? 'Add more friends' : 'Add a friend'}</button></div>`;
   return { bar: rootBar('', searchBtn() + addFriendBtn()), body, fab: true };
 }
 
 function activityTimestamp(record) {
   const raw = record.createdAt || record.updatedAt || record.date;
   if (!raw) return prettyDate(record.date);
-  const d = typeof raw === 'number' ? new Date(raw) : new Date(raw);
+  const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return prettyDate(record.date);
-  const now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
-  const prefix = sameDay ? 'Today' : d.toDateString() === yesterday.toDateString() ? 'Yesterday' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-  return `${prefix}, ${d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}`;
+  const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+  const diff = Math.round((day(new Date()) - day(d)) / 86400000);
+  const clock = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const when = diff <= 0 ? 'Today' : diff === 1 ? 'Yesterday' : diff < 7 ? `${diff} days ago` : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  return `${when}, ${clock}`;
 }
 
 export function activityView() {
@@ -184,7 +184,7 @@ export function activityView() {
         <span class="activity-avatar ${actor === ME ? 'activity-me' : ''}" style="${actor === ME ? '' : avatarStyle(actor)}">${actor === ME ? '' : esc(initial(who(actor)))}</span>
       </span>
       <span class="activity-main">
-        <span class="activity-title">${esc(who(actor))} ${action} “${esc(listTitle(r))}”${g ? ' in “' + esc(g.name) + '”' : ''}.</span>
+        <span class="activity-title">${esc(who(actor))} ${action} <b>“${esc(listTitle(r))}”</b>${g ? ' in <b>“' + esc(g.name) + '”</b>' : ''}.</span>
         <span class="activity-balance ${eff > 0 ? 'pos' : eff < 0 ? 'neg' : ''}">${line}</span>
         <span class="activity-time">${activityTimestamp(r)}</span>
       </span>

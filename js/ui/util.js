@@ -26,9 +26,13 @@ const PATHS = {
   car: '<path d="M3 15v-3l2-5h14l2 5v3zM3 15v3h3v-3M18 15v3h3v-3M6 12h12"/>',
   food: '<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 2-3 5-3 8h3v10"/>',
   bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
+  check: '<path d="M4 12.5l5 5L20 6.5"/>',
+  calendar: '<rect x="3" y="4.5" width="18" height="16" rx="1.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/>',
+  camera: '<path d="M3 8h4l1.8-2.5h6.4L17 8h4v12H3z"/><circle cx="12" cy="13.5" r="3.6"/>',
+  note: '<path d="M11 4H3.5v16.5H20V13"/><path d="M18 3l3 3-9 9-3.6.6.6-3.6z"/>',
 };
-export const icon = (name, size = 24) =>
-  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name] || ''}</svg>`;
+export const icon = (name, size = 24, sw = 1.8) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name] || ''}</svg>`;
 
 export const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -53,9 +57,23 @@ export function hash(str) {
   for (const ch of String(str)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return h;
 }
+// Group artwork, sampled from the real app: four looks (navy, navy + house, green, non-group colours).
+// `a`/`b` feed the plain two-tone gradient used for banners and small thumbnails.
+const THEMES = [
+  { a: '#002947', b: '#236484', svg: '<rect width="240" height="200" fill="#002947"/><polygon points="20,0 240,0 240,135" fill="#000e17"/><rect y="146" width="240" height="54" fill="#236484"/><polygon points="240,160 240,200 204,200" fill="#00203a"/>' },
+  { a: '#001f36', b: '#2a6a8e', svg: '<rect width="240" height="200" fill="#002947"/><polygon points="225,0 240,0 240,150 0,150 0,115" fill="#000e17"/><polygon points="0,182 0,200 40,200" fill="#719fb9"/>' },
+  { a: '#1a9b7c', b: '#97d1c3', svg: '<rect width="240" height="200" fill="#1a9b7c"/><polygon points="0,55 240,55 240,200 0,200" fill="#97d1c3"/><polygon points="0,78 240,195 240,200 0,200" fill="#1cb090"/><polygon points="0,0 70,0 0,40" fill="#1d856c"/>' },
+  { a: '#1cc19f', b: '#9153d2', svg: '<rect width="240" height="200" fill="#1c977a"/><polygon points="0,52 35,70 130,120 150,125 240,195 240,200 0,200" fill="#1cc19f"/><polygon points="240,58 150,125 240,196" fill="#9153d2"/><polygon points="35,70 130,12 130,120" fill="#d44509"/><polygon points="130,12 225,70 130,120" fill="#f96817"/>' },
+];
+const themeOf = (key) => THEMES[hash(key) % 3];
 export function artStyle(key) {
-  const [a, b] = COLORS[hash(key) % COLORS.length];
-  return `background:linear-gradient(150deg,${a} 58%,${b} 58%)`;
+  const t = themeOf(key);
+  return `background:linear-gradient(150deg,${t.a} 58%,${t.b} 58%)`;
+}
+/** Rounded group tile with the artwork behind an optional white icon. kind 'loose' = the non-group colours. */
+export function artTile(key, glyph = '', kind = '') {
+  const t = kind === 'loose' ? THEMES[3] : themeOf(key);
+  return `<div class="art"><svg class="art-bg" viewBox="0 0 240 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${t.svg}</svg>${glyph ? `<span class="art-glyph">${glyph}</span>` : ''}</div>`;
 }
 export const avatarStyle = (key) => `background:${COLORS[hash(key) % COLORS.length][0]}`;
 export const initial = (name) => (String(name).trim()[0] || '?').toUpperCase();

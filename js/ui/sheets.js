@@ -3,10 +3,12 @@ import { ME, toMinor, computeSplits, allocate } from '../logic.js';
 import * as store from '../store.js';
 import * as m from '../model.js';
 import { toRecords } from '../importer.js';
-import { esc, icon, money, today, toast, confirmDialog, avatarStyle, initial } from './util.js';
+import { esc, icon, money, today, toast, confirmDialog, avatarStyle, artStyle, initial, dayOf, monthShort } from './util.js';
 
 export const sheetOpen = () => document.querySelector('.overlay') !== null;
 export const closeSheets = () => document.querySelectorAll('.overlay').forEach((o) => o.remove());
+/** Back button: close only the top-most sheet (a picker on top of the expense page, say). */
+export const closeTopSheet = () => [...document.querySelectorAll('.overlay')].at(-1)?.remove();
 
 function present(title, body, onSave) {
   const layer = document.createElement('div');
@@ -32,7 +34,67 @@ const nameOf = (p) => (p.id === ME ? 'You' : p.name === 'You' ? 'Partner' : p.na
 const options = (list, selected) => list.map((p) => `<option value="${p.id}" ${p.id === selected ? 'selected' : ''}>${esc(nameOf(p))}</option>`).join('');
 const num = (minor) => (minor / 100).toFixed(2);
 
-// ---------------- expense ----------------
+// ---------------- expense (full-screen page, like Splitwise) ----------------
+const GROUP_GLYPH = '<svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="7.5" r="3.3"/><path d="M5.8 19.5c0-3.3 2.7-5.2 6.2-5.2s6.2 1.9 6.2 5.2z"/><circle cx="4.6" cy="10.4" r="2.3"/><circle cx="19.4" cy="10.4" r="2.3"/><path d="M.6 18.4c0-2.3 1.5-3.8 3.6-3.8.7 0 1.3.1 1.8.4-1 1-1.6 2.1-1.8 3.4zM23.4 18.4c0-2.3-1.5-3.8-3.6-3.8-.7 0-1.3.1-1.8.4 1 1 1.6 2.1 1.8 3.4z"/></svg>';
+
+/** Small bottom sheet with one tappable row per option. Resolves with the chosen value, or undefined if dismissed. */
+function pickOne({ title, items, selected }) {
+  return new Promise((resolve) => {
+    const layer = document.createElement('div');
+    layer.className = 'overlay';
+    layer.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="sheet-head"><button type="button" class="iconbtn" data-close aria-label="Close">${icon('close')}</button><h2>${esc(title)}</h2></div>
+      <div class="sheet-body">${items.map((it) => `<button type="button" class="pick-row ${it.value === selected ? 'on' : ''}" data-v="${esc(it.value)}">${it.lead || ''}<span class="pick-main">${esc(it.label)}</span>${it.value === selected ? icon('check', 20, 2.2) : ''}</button>`).join('')}</div></div>`;
+    const done = (v) => { layer.remove(); resolve(v); };
+    layer.addEventListener('click', (e) => {
+      if (e.target === layer || e.target.closest('[data-close]')) return done(undefined);
+      const row = e.target.closest('[data-v]');
+      if (row) done(row.dataset.v);
+    });
+    document.body.appendChild(layer);
+  });
+}
+
+/** Same, but with tick boxes. Resolves with the ticked values after "Done", or undefined if dismissed. */
+function pickMany({ title, items, checked }) {
+  return new Promise((resolve) => {
+    const layer = document.createElement('div');
+    layer.className = 'overlay';
+    layer.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="sheet-head"><button type="button" class="iconbtn" data-close aria-label="Close">${icon('close')}</button><h2>${esc(title)}</h2><button type="button" class="save" data-done>Done</button></div>
+      <div class="sheet-body"><div class="people">${items.map((it) => `<div class="person"><input type="checkbox" id="pm_${it.value}" value="${esc(it.value)}" ${checked.has(it.value) ? 'checked' : ''}><label class="name" for="pm_${it.value}">${esc(it.label)}</label></div>`).join('')}</div></div></div>`;
+    layer.addEventListener('click', (e) => {
+      if (e.target === layer || e.target.closest('[data-close]')) { layer.remove(); resolve(undefined); }
+      else if (e.target.closest('[data-done]')) { const v = [...layer.querySelectorAll('input:checked')].map((c) => c.value); layer.remove(); resolve(v); }
+    });
+    document.body.appendChild(layer);
+  });
+}
+
+/** Full-screen page: back arrow, title, tick to save. Stays above the keyboard. */
+function presentScreen(title, body, onSave) {
+  const layer = document.createElement('div');
+  layer.className = 'overlay screen';
+  layer.innerHTML = `<form class="xs" novalidate>
+    <div class="xs-bar"><button type="button" class="iconbtn" data-close aria-label="Back">${icon('back', 24, 2.2)}</button><h2>${esc(title)}</h2><button class="iconbtn xs-save" aria-label="Save">${icon('check', 26, 2.2)}</button></div>${body}</form>`;
+  const form = layer.querySelector('form');
+  layer.querySelector('[data-close]').addEventListener('click', () => layer.remove());
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (onSave(form) !== false) layer.remove();
+  });
+  document.body.appendChild(layer);
+  // Browsers that don't resize the page for the keyboard: follow the visible area so the bottom bar stays visible.
+  const vv = window.visualViewport;
+  if (vv) {
+    const fit = () => {
+      if (!layer.isConnected) { vv.removeEventListener('resize', fit); return; }
+      form.style.height = `${Math.round(vv.height)}px`;
+    };
+    vv.addEventListener('resize', fit);
+    fit();
+  }
+  return { form, layer };
+}
+
 function expenseSheet({ id, groupId, friendId }) {
   const editing = id ? store.getRecord('expenses', id) : null;
   const people = everyone();
@@ -42,7 +104,7 @@ function expenseSheet({ id, groupId, friendId }) {
   const startGroup = editing ? editing.groupId : groupId && groupId !== m.NO_GROUP ? groupId : null;
   const group0 = startGroup && store.getRecord('groups', startGroup) ? startGroup : null;
   // Whoever did not pay owes the whole amount (with more than two people they share it equally).
-  // In a group that is everyone else in the group. With no group it is the people ticked under "Split with"
+  // In a group that is everyone else in the group. With no group it is the people ticked under "With you and"
   // (by default only the signed-in people, so adding another friend later never changes how an expense splits).
   const nm = (pid) => nameOf(people.find((p) => p.id === pid));
   const gMembers = (gid) => { const g = gid && store.getRecord('groups', gid); return g ? g.members : null; };
@@ -60,15 +122,25 @@ function expenseSheet({ id, groupId, friendId }) {
     return cand.length > 1 ? cand.filter((x) => withSet.has(x)) : cand;
   };
 
-  const { form } = present(editing ? 'Edit expense' : 'Add expense', `
-    <div class="field"><label for="f_desc">Description</label><input class="input" id="f_desc" name="description" maxlength="80" value="${esc(editing?.description || '')}" placeholder="Dinner, groceries, taxi…" autocomplete="off"></div>
-    <div class="field"><label for="f_amount">Amount</label><div class="amount-row"><span class="cur">${esc(symbol)}</span><input class="input" id="f_amount" name="amount" inputmode="decimal" value="${editing ? num(editing.amount) : ''}" placeholder="0.00" autocomplete="off"></div></div>
-    <div class="two"><div class="field"><label for="f_date">Date</label><input class="input" id="f_date" name="date" type="date" value="${editing?.date || today()}"></div>
-    <div class="field"><label for="f_payer">Paid by</label><select class="select" id="f_payer" name="payer">${options(people, editing?.payer || ME)}</select></div></div>
-    <div class="hint" id="f_hint" style="margin:-4px 0 14px"></div>
-    <div class="field"><label for="f_group">Group</label><select class="select" id="f_group" name="groupId"><option value="">No group</option>${groupList.map((g) => `<option value="${g.id}" ${g.id === group0 ? 'selected' : ''}>${esc(g.name)}</option>`).join('')}</select></div>
-    <div class="field" id="f_with" hidden><span class="label">Split with</span><div class="people" id="f_withList"></div></div>
-    <div class="field"><label for="f_notes">Notes (optional)</label><textarea class="textarea" id="f_notes" name="notes" rows="2">${esc(editing?.notes || '')}</textarea></div>`,
+  const date0 = editing?.date || today();
+  const { form } = presentScreen(editing ? 'Edit expense' : 'Add expense', `
+    <div class="xs-with"><span>With <b>you</b> and:</span><button type="button" class="xs-chip" data-x="chip"><span class="xs-av" id="x_av"></span><span class="xs-chiptext" id="x_with"></span></button></div>
+    <div class="xs-fields">
+      <div class="xs-row"><div class="xs-box">${icon('receipt', 30, 1.8)}</div><input class="xs-in" id="f_desc" name="description" maxlength="80" value="${esc(editing?.description || '')}" placeholder="Enter a description" autocomplete="off" enterkeyhint="next"></div>
+      <div class="xs-row"><div class="xs-box xs-cur">${esc(symbol)}</div><input class="xs-in xs-amt" id="f_amount" name="amount" inputmode="decimal" value="${editing ? num(editing.amount) : ''}" placeholder="0.00" autocomplete="off"></div>
+    </div>
+    <button type="button" class="xs-split" data-x="split" id="x_split"></button>
+    <div class="xs-hint" id="f_hint"></div>
+    <div class="xs-notes" id="x_notes" ${editing?.notes ? '' : 'hidden'}><textarea class="textarea" name="notes" rows="3" placeholder="Add notes">${esc(editing?.notes || '')}</textarea></div>
+    <div class="xs-grow"></div>
+    <div class="xs-bottom">
+      <button type="button" class="xs-group" data-x="group"><span class="xs-gicon">${GROUP_GLYPH}</span><span id="x_group">No group</span></button>
+      <span class="xs-date" id="x_dateText"></span>
+      <label class="xs-act cal" aria-label="Date">${icon('calendar', 30, 2.2)}<input type="date" name="date" class="xs-datein" value="${date0}"></label>
+      <button type="button" class="xs-act cam" data-x="cam" aria-label="Add a photo">${icon('camera', 30, 2.2)}</button>
+      <button type="button" class="xs-act note" data-x="note" aria-label="Notes">${icon('note', 30, 2.2)}</button>
+    </div>
+    <input type="hidden" name="payer" value="${editing?.payer || ME}"><input type="hidden" name="groupId" value="${group0 || ''}">`,
   (f) => {
     const el = (n) => f.elements[n];
     const description = el('description').value.trim();
@@ -85,44 +157,99 @@ function expenseSheet({ id, groupId, friendId }) {
     toast(editing ? 'Expense updated' : 'Expense added');
   });
 
+  const q = (sel) => form.querySelector(sel);
+  const curGroup = () => store.getRecord('groups', form.elements.groupId.value);
+
   function refresh() {
     const payer = form.elements.payer.value;
+    const g = curGroup();
     const others = othersOf(form.elements.groupId.value || null, payer);
     const v = toMinor(form.elements.amount.value);
     const amt = Number.isNaN(v) || !v ? '' : ` of ${money(v)}`;
     const names = others.map(nm);
     const verb = names.length === 1 && names[0] !== 'You' ? 'owes' : 'owe';
-    form.querySelector('#f_hint').textContent = names.length ? `${names.join(', ')} ${verb} ${payer === ME ? 'you' : nm(payer)} the full amount${amt}.` : '';
+    q('#f_hint').textContent = names.length ? `${names.join(', ')} ${verb} ${payer === ME ? 'you' : nm(payer)} the full amount${amt}.` : '';
+    q('#x_split').innerHTML = `Paid by <b>${esc(payer === ME ? 'you' : nm(payer))}</b> and split <b>equally</b>.`;
+    q('#x_group').textContent = g ? g.name : 'No group';
+    // the "With you and:" chip: the whole group, or the people ticked
+    const others2 = people.filter((p) => p.id !== ME);
+    const picked = others2.filter((p) => others2.length === 1 || withSet.has(p.id));
+    const label = g ? `All of ${g.name}` : (picked.map((p) => nameOf(p)).join(', ') || 'Choose people');
+    q('#x_with').textContent = label;
+    const av = q('#x_av');
+    if (g) { av.setAttribute('style', artStyle(g.id)); av.innerHTML = icon('users', 16, 2); }
+    else { av.setAttribute('style', picked[0] ? avatarStyle(picked[0].id) : ''); av.textContent = picked[0] ? initial(picked[0].name) : '?'; }
   }
 
-  // the "Split with" list only matters without a group, and only when there is more than one person to choose from
-  function renderWith() {
-    const payer = form.elements.payer.value;
-    const cand = people.filter((p) => p.id !== payer);
-    form.querySelector('#f_with').hidden = Boolean(form.elements.groupId.value) || cand.length < 2;
-    form.querySelector('#f_withList').innerHTML = cand.map((p) => `<div class="person"><input type="checkbox" id="w_${p.id}" value="${p.id}" ${withSet.has(p.id) ? 'checked' : ''}><label class="name" for="w_${p.id}">${esc(nameOf(p))}</label></div>`).join('');
+  function updateDate() {
+    const d = form.elements.date.value;
+    q('#x_dateText').textContent = d && d !== today() ? `${dayOf(d)} ${monthShort(d)}` : '';
   }
 
   function applyGroup() {
-    const g = store.getRecord('groups', form.elements.groupId.value);
-    const allowed = g ? new Set(g.members) : null;
-    [...form.elements.payer.options].forEach((o) => {
-      const ok = !allowed || allowed.has(o.value);
-      o.hidden = !ok;
-      o.disabled = !ok;
+    const g = curGroup();
+    if (g && !g.members.includes(form.elements.payer.value)) form.elements.payer.value = ME;
+    refresh();
+  }
+
+  async function chooseGroup() {
+    const v = await pickOne({
+      title: 'Group',
+      selected: form.elements.groupId.value,
+      items: [{ value: '', label: 'No group', lead: `<span class="pick-lead">${GROUP_GLYPH}</span>` },
+        ...groupList.map((g) => ({ value: g.id, label: g.name, lead: `<span class="pick-lead art-dot" style="${artStyle(g.id)}"></span>` }))],
     });
-    if (allowed && !allowed.has(form.elements.payer.value)) form.elements.payer.value = ME;
-    renderWith();
+    if (v === undefined) return;
+    form.elements.groupId.value = v;
+    applyGroup();
+  }
+
+  async function choosePayer() {
+    const mem = gMembers(form.elements.groupId.value || null);
+    const v = await pickOne({
+      title: 'Who paid?',
+      selected: form.elements.payer.value,
+      items: people.filter((p) => !mem || mem.includes(p.id)).map((p) => ({ value: p.id, label: nameOf(p), lead: `<span class="avatar pick-lead" style="${avatarStyle(p.id)}">${esc(initial(p.name))}</span>` })),
+    });
+    if (v === undefined) return;
+    form.elements.payer.value = v;
+    refresh();
+  }
+
+  async function chooseWith() {
+    const cand = people.filter((p) => p.id !== form.elements.payer.value);
+    if (curGroup() || cand.length < 2) return chooseGroup();
+    const v = await pickMany({ title: 'Split with', items: cand.map((p) => ({ value: p.id, label: nameOf(p) })), checked: withSet });
+    if (v === undefined) return;
+    cand.forEach((p) => withSet.delete(p.id));
+    v.forEach((x) => withSet.add(x));
     refresh();
   }
 
   form.addEventListener('input', refresh);
-  form.addEventListener('change', (e) => {
-    if (e.target.name === 'groupId') applyGroup();
-    else if (e.target.name === 'payer') { renderWith(); refresh(); }
-    else if (e.target.closest('#f_withList')) { if (e.target.checked) withSet.add(e.target.value); else withSet.delete(e.target.value); refresh(); }
-    else refresh();
+  form.addEventListener('change', (e) => { if (e.target.name === 'date') updateDate(); refresh(); });
+  form.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.name === 'description') { e.preventDefault(); form.elements.amount.focus(); }
   });
+  form.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-x]');
+    if (!t) return;
+    switch (t.dataset.x) {
+      case 'chip': chooseWith(); break;
+      case 'split': choosePayer(); break;
+      case 'group': chooseGroup(); break;
+      case 'cam': toast('Receipt photos aren’t supported yet'); break;
+      case 'note': {
+        const box = q('#x_notes');
+        box.hidden = !box.hidden;
+        if (!box.hidden) form.elements.notes.focus();
+        break;
+      }
+      default:
+    }
+  });
+  form.elements.date.addEventListener('click', () => { try { form.elements.date.showPicker(); } catch { /* the phone opens its own picker */ } });
+  updateDate();
   applyGroup();
   if (!editing) form.elements.description.focus();
 }
