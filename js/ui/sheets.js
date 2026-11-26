@@ -207,9 +207,10 @@ function groupSheet({ id }) {
 // ---------------- friend ----------------
 function friendSheet({ id }) {
   const editing = id ? store.getRecord('people', id) : null;
+  const others = editing ? everyone().filter((p) => p && p.id !== id) : [];
   const { form, layer } = present(editing ? 'Edit friend' : 'Add a friend', `
     <div class="field"><label for="p_name">Name</label><input class="input" id="p_name" name="name" maxlength="40" value="${esc(editing?.name || '')}" autocomplete="off"></div>
-    ${editing ? `<div class="row" style="border:0"><div class="avatar" style="${avatarStyle(id)}">${esc(initial(editing.name))}</div><div class="main muted">Friends can be added to groups and expenses.</div></div><button type="button" class="btn danger block" data-delete>Remove friend</button>` : ''}`,
+    ${editing ? `<div class="row" style="border:0"><div class="avatar" style="${avatarStyle(id)}">${esc(initial(editing.name))}</div><div class="main muted">Friends can be added to groups and expenses.</div></div>${others.length ? `<div class="field" style="margin-top:14px"><label for="p_merge">Same person as another friend?</label><select class="select" id="p_merge"><option value="">Choose who to merge into…</option>${others.map((p) => `<option value="${p.id}">${esc(nameOf(p))}</option>`).join('')}</select><button type="button" class="btn block" data-merge style="margin-top:8px">Merge into selected</button><div class="hint">Moves all expenses, payments and group memberships to them, then removes ${esc(editing.name)}.</div></div>` : ''}<button type="button" class="btn danger block" data-delete>Remove friend</button>` : ''}`,
   (f) => {
     const name = f.elements.name.value.trim();
     if (!name) { toast('Enter a name'); return false; }
@@ -217,8 +218,18 @@ function friendSheet({ id }) {
     store.put('people', { id: editing?.id, name });
     toast(editing ? 'Friend updated' : 'Friend added');
   });
+  layer.querySelector('[data-merge]')?.addEventListener('click', async () => {
+    const to = layer.querySelector('#p_merge').value;
+    if (!to) { toast('Choose who to merge into'); return; }
+    const target = store.getRecord('people', to);
+    if (await confirmDialog(`Merge ${editing.name} into ${nameOf(target)}?`, 'Merge')) {
+      layer.remove();
+      store.mergePerson(editing.id, to);
+      toast('Merged');
+    }
+  });
   layer.querySelector('[data-delete]')?.addEventListener('click', async () => {
-    if (store.personInUse(editing.id)) { toast('Delete their expenses and payments first'); return; }
+    if (store.personInUse(editing.id)) { toast('Has expenses or payments: use "Merge into selected" or delete those first'); return; }
     if (await confirmDialog(`Remove ${editing.name}?`, 'Remove')) {
       layer.remove();
       store.removePerson(editing.id);

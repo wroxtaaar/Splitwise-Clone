@@ -184,7 +184,7 @@ export function groupView(id) {
   const body = `${banner}<div class="sumline">${sum}</div>
     <div class="pills"><button data-act="sheet" data-sheet="settle" data-group="${id}">Settle up</button></div>
     <div class="content">${timeline(items, false, false)}${items.length ? '' : empty('Nothing here yet', 'Tap Add expense to add the first one.')}
-    ${real ? `<div class="section-title">Members</div>${people}` : ''}</div>`;
+    ${real ? `<div class="section-title">Members</div>${people}<div class="btn-row" style="margin-top:18px"><button class="btn danger block" data-act="delete-group" data-id="${id}">Delete group</button></div>` : ''}</div>`;
   return { bar: '', body, fab: true };
 }
 

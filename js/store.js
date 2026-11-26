@@ -121,6 +121,41 @@ export function removePerson(id) {
   emit('local');
 }
 
+/** Merge a duplicate person into another: everything that referred to `fromId` now refers to `toId`. */
+export function mergePerson(fromId, toId) {
+  if (!fromId || !toId || fromId === toId) return;
+  if (state.people[fromId]?.isUser) return;
+  const now = Date.now();
+  const bump = (r) => Math.max(now, (r.updatedAt || 0) + 1);
+  expenses().forEach((e) => {
+    const touches = e.payer === fromId || (e.splits && fromId in e.splits);
+    if (!touches) return;
+    const splits = { ...(e.splits || {}) };
+    if (fromId in splits) {
+      splits[toId] = (splits[toId] || 0) + splits[fromId];
+      delete splits[fromId];
+    }
+    const payer = e.payer === fromId ? toId : e.payer;
+    state.expenses[e.id] = { ...e, payer, splits, updatedAt: bump(e) };
+    mark('expenses', e.id);
+  });
+  settlements().forEach((s) => {
+    if (s.from !== fromId && s.to !== fromId) return;
+    const from = s.from === fromId ? toId : s.from;
+    const to = s.to === fromId ? toId : s.to;
+    if (from === to) { tombstone('settlements', s.id, now); return; }
+    state.settlements[s.id] = { ...s, from, to, updatedAt: bump(s) };
+    mark('settlements', s.id);
+  });
+  groups().filter((g) => g.members.includes(fromId)).forEach((g) => {
+    const members = [...new Set(g.members.map((x) => (x === fromId ? toId : x)))];
+    state.groups[g.id] = { ...g, members, updatedAt: bump(g) };
+    mark('groups', g.id);
+  });
+  tombstone('people', fromId, now);
+  emit('local');
+}
+
 export function setSettings(patch) {
   state.settings = { ...state.settings, ...patch };
   emit('settings');

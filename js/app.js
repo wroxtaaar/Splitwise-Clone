@@ -96,6 +96,19 @@ window.addEventListener('popstate', (e) => {
   render();
 });
 
+// ---- Android hardware/gesture Back (native app): handled directly, no reliance on WebView history ----
+(function nativeBack() {
+  const App = window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.App : null;
+  if (!App?.addListener) return;
+  App.addListener('backButton', () => {
+    if (ui.mode !== 'app') { App.exitApp(); return; }
+    if (sheetOpen()) { closeSheets(); return; }
+    if (ui.nav.length) { ui.nav.pop(); render(); return; }
+    if (ui.tab !== 'groups') { ui.tab = 'groups'; render(); window.scrollTo(0, 0); return; }
+    App.exitApp();
+  });
+})();
+
 // ---- theme ----
 function applyTheme() {
   const t = store.getState().settings.theme;
@@ -190,6 +203,12 @@ document.addEventListener('click', async (e) => {
     case 'theme': store.setSettings({ theme: d.v }); break;
     case 'delete-expense':
       if (await confirmDialog('Delete this expense?')) { store.removeRecord('expenses', d.id); toast('Expense deleted'); }
+      break;
+    case 'delete-group':
+      if (await confirmDialog('Delete this group and all of its expenses and payments?')) {
+        store.removeGroup(d.id);
+        toast('Group deleted');
+      }
       break;
     case 'delete-settlement':
       if (await confirmDialog('Delete this payment?')) { store.removeRecord('settlements', d.id); toast('Payment deleted'); }

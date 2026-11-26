@@ -60,3 +60,20 @@ test('the two signed-in people are never removed by a restore or by removePerson
   assert.ok(store.getRecord('people', 'pa') && store.getRecord('people', 'me1'));
   assert.equal(store.getRecord('people', friend), null);
 });
+
+test('mergePerson moves expenses, payments and memberships to the other person', () => {
+  store.init('t-merge');
+  const a = store.put('people', { name: 'Papa', isUser: true });
+  const b = store.put('people', { name: 'Mohd Sadiq' });
+  const g = store.put('groups', { name: 'G', members: ['me', a, b] });
+  const e1 = store.put('expenses', { description: 'x', amount: 1000, payer: 'me', splits: { [b]: 500, [a]: 500 }, date: '2026-01-01', groupId: g });
+  const e2 = store.put('expenses', { description: 'y', amount: 300, payer: b, splits: { me: 300 }, date: '2026-01-01', groupId: g });
+  const s1 = store.put('settlements', { from: b, to: 'me', amount: 100, date: '2026-01-01', groupId: g });
+  assert.ok(store.personInUse(b));
+  store.mergePerson(b, a);
+  assert.deepEqual(store.getRecord('expenses', e1).splits, { [a]: 1000 });
+  assert.equal(store.getRecord('expenses', e2).payer, a);
+  assert.equal(store.getRecord('settlements', s1).from, a);
+  assert.deepEqual(store.getRecord('groups', g).members, ['me', a]);
+  assert.equal(store.getRecord('people', b), null);
+});
