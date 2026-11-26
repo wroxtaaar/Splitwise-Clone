@@ -213,11 +213,18 @@ export function groupView(id) {
   const people = real ? real.members.map((mid) => `<div class="row"><div class="avatar" style="${avatarStyle(mid)}">${esc(initial(who(mid)))}</div><div class="main"><div class="title">${esc(who(mid))}</div></div></div>`).join('') : '';
   const sum = s.debts.length ? s.debts.map((d) => `<div>${debtLine(d)}</div>`).join('') : `<div class="muted">${items.length ? 'You are all settled up' : 'No expenses yet'}</div>`;
   const n = real ? real.members.length : 0;
-  const banner = `<div class="banner" style="${real ? artStyle(id) : 'background:linear-gradient(135deg,#1ec2a0 50%,#8a58d0 50%)'}"><div class="banner-top"><button class="circ" data-act="back" aria-label="Back">${icon('back', 22)}</button>${real ? `<button class="circ" data-act="sheet" data-sheet="group" data-id="${id}" aria-label="Group settings">${icon('gear', 20)}</button>` : ''}</div>
-    <h1>${esc(real ? real.name : 'Non-group expenses')}</h1>${real ? `<button class="chip" style="color:inherit;font:inherit;font-size:13px;cursor:pointer" data-act="sheet" data-sheet="members" data-id="${id}">${icon('users', 18)} ${n} ${n === 1 ? 'person' : 'people'}</button>` : ''}</div>`;
-  const body = `${banner}<div class="sumline">${sum}</div>
-    <div class="pills"><button data-act="sheet" data-sheet="settle" data-group="${id}">Settle up</button></div>
-    <div class="content">${timeline(items, false, false)}${items.length ? '' : empty('Nothing here yet', 'Tap Add expense to add the first one.')}
+  const banner = `<header class="banner" style="${real ? artStyle(id) : 'background:linear-gradient(135deg,#1ec2a0 50%,#8a58d0 50%)'}">
+    <div class="banner-top"><button class="circ" data-act="back" aria-label="Back">${icon('back', 22)}</button>${real ? `<button class="circ" data-act="sheet" data-sheet="group" data-id="${id}" aria-label="Group settings">${icon('gear', 20)}</button>` : ''}</div>
+    <h1>${esc(real ? real.name : 'Non-group expenses')}</h1>
+    ${real ? `<button class="chip" data-act="sheet" data-sheet="members" data-id="${id}" aria-label="View ${n} group members">${icon('users', 18)} <span>${n} ${n === 1 ? 'person' : 'people'}</span></button>` : ''}
+  </header>`;
+  const body = `${banner}
+    <div class="sumline">${sum}</div>
+    <div class="pills" aria-label="Group actions">
+      <button data-act="sheet" data-sheet="settle" data-group="${id}">Settle up</button>
+      ${real ? `<button data-act="sheet" data-sheet="members" data-id="${id}">${icon('users', 16)} People</button>` : ''}
+    </div>
+    <div class="content group-expenses">${timeline(items, false, false)}${items.length ? '' : empty('Nothing here yet', 'Tap Add expense to add the first one.')}
     ${real ? `<div class="section-title">Members</div>${people}<div class="btn-row" style="margin-top:18px"><button class="btn danger block" data-act="delete-group" data-id="${id}">Delete group</button></div>` : ''}</div>`;
   return { bar: '', body, fab: true };
 }
