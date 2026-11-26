@@ -153,24 +153,44 @@ export function friendsView(ui = {}) {
   return { bar: rootBar('', searchBtn() + addFriendBtn()), body, fab: true };
 }
 
+function activityTimestamp(record) {
+  const raw = record.createdAt || record.updatedAt || record.date;
+  if (!raw) return prettyDate(record.date);
+  const d = typeof raw === 'number' ? new Date(raw) : new Date(raw);
+  if (Number.isNaN(d.getTime())) return prettyDate(record.date);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+  const prefix = sameDay ? 'Today' : d.toDateString() === yesterday.toDateString() ? 'Yesterday' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  return `${prefix}, ${d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}`;
+}
+
 export function activityView() {
   const rows = m.activityFeed().map(({ kind, record: r }) => {
     if (kind === 'settlement') {
-      return `<button class="row" data-act="open" data-view="settlement" data-id="${r.id}">
-        <div class="art small" style="background:var(--surface);color:var(--muted)">${icon('swap', 22)}</div>
-        <div class="main"><div class="title">${esc(who(r.from))} paid ${esc(whoLower(r.to))}</div><div class="sub">${prettyDate(r.date)}</div></div>
-        <div class="end"><b>${money(r.amount)}</b></div></button>`;
+      return `<button class="activity-row activity-payment" data-act="open" data-view="settlement" data-id="${r.id}">
+        <div class="activity-symbol">${icon('swap', 27)}</div>
+        <div class="activity-main"><div class="activity-title">${esc(who(r.from))} paid ${esc(whoLower(r.to))}</div><div class="activity-time">${activityTimestamp(r)}</div></div>
+        <div class="activity-amount">${money(r.amount)}</div>
+      </button>`;
     }
     const g = r.groupId && store.getRecord('groups', r.groupId);
     const eff = m.myEffectOn(r);
     const line = eff == null ? 'You are not involved' : eff > 0 ? `You get back ${money(eff)}` : `You owe ${money(-eff)}`;
-    return `<button class="row" data-act="open" data-view="expense" data-id="${r.id}">
-      <div class="art small" style="${artStyle(r.groupId || r.id)}">${icon('receipt', 22)}</div>
-      <div class="main"><div class="title">${esc(who(r.createdBy || r.payer))} ${r.updatedAt - (r.createdAt || r.updatedAt) > 60000 ? 'updated' : 'added'} “${esc(listTitle(r))}”${g ? ' in ' + esc(g.name) : ''}</div>
-      <div class="sub ${eff > 0 ? 'pos' : eff < 0 ? 'neg' : ''}">${line}</div></div>
-      <div class="end">${prettyDate(r.date)}</div></button>`;
+    const actor = r.createdBy || r.payer;
+    const action = r.updatedAt - (r.createdAt || r.updatedAt) > 60000 ? 'updated' : 'added';
+    return `<button class="activity-row" data-act="open" data-view="expense" data-id="${r.id}">
+      <span class="activity-art">${catTile(r.description, 42, 26, r.category)}
+        <span class="activity-avatar ${actor === ME ? 'activity-me' : ''}" style="${actor === ME ? '' : avatarStyle(actor)}">${actor === ME ? '' : esc(initial(who(actor)))}</span>
+      </span>
+      <span class="activity-main">
+        <span class="activity-title">${esc(who(actor))} ${action} “${esc(listTitle(r))}”${g ? ' in “' + esc(g.name) + '”' : ''}.</span>
+        <span class="activity-balance ${eff > 0 ? 'pos' : eff < 0 ? 'neg' : ''}">${line}</span>
+        <span class="activity-time">${activityTimestamp(r)}</span>
+      </span>
+    </button>`;
   }).join('');
-  return { bar: rootBar('Recent activity', searchBtn()), body: `<div class="content">${rows || empty('No activity yet', 'Add an expense to get started.')}</div>`, fab: true };
+  return { bar: rootBar('', searchBtn()), body: `<div class="content activity-content"><h2 class="activity-heading">Recent activity</h2>${rows || empty('No activity yet', 'Add an expense to get started.')}</div>`, fab: true };
 }
 
 export function accountView() {
