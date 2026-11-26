@@ -143,7 +143,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          N=${{ github.run_number }}
           sha=$(sha256sum out/Expense.apk | cut -d' ' -f1)
-          echo "{\"versionCode\": ${{ github.run_number }}, \"sha256\": \"$sha\"}" > out/version.json
+          cp out/Expense.apk "out/Expense-$N.apk"
+          echo "{\"versionCode\": $N, \"sha256\": \"$sha\", \"apk\": \"Expense-$N.apk\"}" > out/version.json
           gh release view latest >/dev/null 2>&1 || gh release create latest --title "Latest build" --notes "Auto-updated by CI. The Expense app downloads this." --latest
-          gh release upload latest out/Expense.apk out/version.json --clobber
+          # Each build gets its own file name, so a cached or half-updated download can never be mixed with another build's checksum.
+          gh release upload latest "out/Expense-$N.apk" --clobber
+          gh release upload latest out/Expense.apk --clobber   # older installed apps still use this fixed name
+          gh release upload latest out/version.json --clobber
+          # keep only the newest few numbered builds
+          gh release view latest --json assets --jq '.assets[].name' | grep -E '^Expense-[0-9]+\.apk$' | sort -t- -k2 -n | head -n -3 | xargs -r -I{} gh release delete-asset latest {} -y

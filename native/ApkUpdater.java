@@ -67,6 +67,7 @@ public class ApkUpdater extends Plugin {
                 out.put("installed", installedCode());
                 out.put("latest", j.optLong("versionCode", 0));
                 out.put("sha256", j.optString("sha256", ""));
+                out.put("apk", j.optString("apk", "Expense.apk"));
                 call.resolve(out);
             } catch (Exception e) {
                 call.reject("check failed: " + e.getMessage());

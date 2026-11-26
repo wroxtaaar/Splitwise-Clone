@@ -18,7 +18,7 @@ export async function check() {
 export async function install(info) {
   const p = plugin();
   if (!p) throw new Error('not supported');
-  return p.install({ url: `${BASE}/Expense.apk`, sha256: info.sha256 || '' });
+  return p.install({ url: `${BASE}/${info.apk || 'Expense.apk'}`, sha256: info.sha256 || '' });
 }
 
 export const explain = (e) => (String(e?.message || e).includes('needs_permission')
