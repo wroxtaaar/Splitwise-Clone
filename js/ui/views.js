@@ -70,8 +70,8 @@ function settlementRow(s, effect) {
 }
 
 /** Expenses and payments, newest first, under month headings. */
-function timeline(items, pairEffect = false, showGroup = true) {
-  let current = '';
+function timeline(items, pairEffect = false, showGroup = true, prev = null) {
+  let current = prev ? monthLong(prev.record.date) : '';
   return items
     .map((it) => {
       const month = monthLong(it.record.date);
@@ -81,6 +81,33 @@ function timeline(items, pairEffect = false, showGroup = true) {
       return head + (it.kind === 'expense' ? expenseRow(it.record, { effect, showGroup }) : settlementRow(it.record, it.effect));
     })
     .join('');
+}
+
+// ---------- paging: draw the first 50 rows, the rest only when the person scrolls down to them ----------
+const PAGE = 50;
+const MORE = '<div class="more" data-more><button class="btn block" data-act="load-more">Show more</button></div>';
+let pending = null; // what the marker at the bottom of the page draws next
+let want = 0; // rows to draw on the first pass (keeps what was already loaded across a re-render)
+let shown = 0;
+export const startPaging = (n = 0) => { want = n; shown = 0; pending = null; };
+export const pagedCount = () => shown;
+function paged(items, draw) {
+  const n = Math.max(PAGE, want);
+  shown = Math.min(n, items.length);
+  pending = items.length > n ? { items, shown: n, draw } : null;
+  return draw(items.slice(0, n), null) + (pending ? MORE : '');
+}
+/** HTML for the next 50 rows (plus a fresh marker if there are still more), or '' when everything is drawn. */
+export function loadMore() {
+  if (!pending) return '';
+  const { items, draw } = pending;
+  const next = items.slice(pending.shown, pending.shown + PAGE);
+  const html = draw(next, items[pending.shown - 1]);
+  pending.shown += next.length;
+  shown = pending.shown;
+  const done = pending.shown >= items.length;
+  if (done) pending = null;
+  return html + (done ? '' : MORE);
 }
 
 function debtLine(d) {
@@ -166,7 +193,7 @@ function activityTimestamp(record) {
 }
 
 export function activityView() {
-  const rows = m.activityFeed().map(({ kind, record: r }) => {
+  const activityRow = ({ kind, record: r }) => {
     if (kind === 'settlement') {
       return `<button class="activity-row activity-payment" data-act="open" data-view="settlement" data-id="${r.id}">
         <div class="activity-symbol">${icon('swap', 27)}</div>
@@ -189,7 +216,8 @@ export function activityView() {
         <span class="activity-time">${activityTimestamp(r)}</span>
       </span>
     </button>`;
-  }).join('');
+  };
+  const rows = paged(m.activityFeed(), (chunk) => chunk.map(activityRow).join(''));
   return { bar: rootBar('', searchBtn()), body: `<div class="content activity-content"><h2 class="activity-heading">Recent activity</h2>${rows || empty('No activity yet', 'Add an expense to get started.')}</div>`, fab: true };
 }
 
@@ -244,7 +272,7 @@ export function groupView(id) {
       <button data-act="sheet" data-sheet="settle" data-group="${id}">Settle up</button>
       ${real ? `<button data-act="sheet" data-sheet="members" data-id="${id}">${icon('users', 16)} People</button>` : ''}
     </div>
-    <div class="content group-expenses">${timeline(items, false, false)}${items.length ? '' : empty('Nothing here yet', 'Tap Add expense to add the first one.')}
+    <div class="content group-expenses">${paged(items, (chunk, prev) => timeline(chunk, false, false, prev))}${items.length ? '' : empty('Nothing here yet', 'Tap Add expense to add the first one.')}
     ${real ? `<div class="section-title">Members</div>${people}<div class="btn-row" style="margin-top:18px"><button class="btn danger block" data-act="delete-group" data-id="${id}">Delete group</button></div>` : ''}</div>`;
   return { bar: '', body, fab: true };
 }
@@ -259,7 +287,7 @@ export function friendView(id) {
       <div class="main"><div style="font-size:20px;font-weight:600">${esc(f.name)}</div></div></div>
     <div class="summary"><div class="big">${headline}</div></div>
     <div class="pills" style="padding-left:0"><button data-act="sheet" data-sheet="settle" data-friend="${id}">Settle up</button></div>
-    ${timeline(items, true)}${items.length ? '' : empty('No shared expenses', `You and ${f.name} haven’t shared anything yet.`)}</div>`;
+    ${paged(items, (chunk, prev) => timeline(chunk, true, true, prev))}${items.length ? '' : empty('No shared expenses', `You and ${f.name} haven’t shared anything yet.`)}</div>`;
   const editBtn = f.isUser ? '' : iconBtn('edit', `data-act="sheet" data-sheet="friend" data-id="${id}"`, 'Edit friend');
   return { bar: bar(backBtn(), '', editBtn), body, fab: true };
 }

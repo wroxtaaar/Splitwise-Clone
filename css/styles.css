@@ -556,3 +556,6 @@ body { font-family: Lato, system-ui, -apple-system, 'Segoe UI', Roboto, sans-ser
 
 /* Activity: the quoted description and group are bold, like the real app */
 .activity-title b { font-weight: 700; }
+
+/* "Show more" marker at the end of a long list (auto-loads when scrolled near) */
+.more { padding: 6px 0 22px; }

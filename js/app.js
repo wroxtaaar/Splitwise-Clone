@@ -27,6 +27,7 @@ export function render() {
   if (ui.mode !== 'app') return;
   const key = ui.tab + '/' + ui.nav.map((n) => n.view + n.id).join('/');
   const y = key === lastKey ? window.scrollY : 0;
+  views.startPaging(key === lastKey ? views.pagedCount() : 0); // a re-render keeps the rows already loaded
   let s = screen();
   let missing = false;
   if (!s) {
@@ -41,8 +42,26 @@ export function render() {
   root.innerHTML = s.bar + s.body + fab + tabs;
   window.scrollTo(0, y);
   lastKey = key;
+  watchMore();
   if (ui.nav.at(-1)?.view === 'search') bindSearch();
   if (missing) history.back(); // the item was deleted (here or on another device): leave its page
+}
+
+// Long lists draw 50 rows; the next 50 are added just before you reach the end.
+let moreWatcher = null;
+function loadMoreRows() {
+  const marker = root.querySelector('[data-more]');
+  if (!marker) return;
+  marker.insertAdjacentHTML('beforebegin', views.loadMore());
+  marker.remove();
+  watchMore();
+}
+function watchMore() {
+  moreWatcher?.disconnect();
+  const marker = root.querySelector('[data-more]');
+  if (!marker || !('IntersectionObserver' in window)) return;
+  moreWatcher = new IntersectionObserver((entries) => { if (entries.some((en) => en.isIntersecting)) loadMoreRows(); }, { rootMargin: '700px 0px' });
+  moreWatcher.observe(marker);
 }
 
 // Changes arriving from the other phone must not wipe what you are typing: wait until you stop.
@@ -215,6 +234,7 @@ document.addEventListener('click', async (e) => {
     }
     case 'open': push({ view: d.view, id: d.id }); break;
     case 'back': history.back(); break;
+    case 'load-more': loadMoreRows(); break;
     case 'sheet': openSheet(d.sheet, { id: d.id, groupId: d.group, friendId: d.friend }); break;
     case 'toggle-settled-friends': ui.showSettledFriends = !ui.showSettledFriends; render(); break;
     case 'toggle-settled': ui.hideSettled = !ui.hideSettled; toast(ui.hideSettled ? 'Hiding settled groups' : 'Showing all groups'); render(); break;
