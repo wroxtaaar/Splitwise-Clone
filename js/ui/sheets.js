@@ -158,18 +158,24 @@ function expenseSheet({ id, groupId, friendId }) {
   });
 
   const q = (sel) => form.querySelector(sel);
+  // "Paid by you and Papa owes" / "Paid by Papa and you owe": one person pays everything, the rest owe it to them.
+  const payPhrase = (payer, gid) => {
+    const names = othersOf(gid, payer).map((x) => (x === ME ? 'you' : nm(x)));
+    const verb = names.length === 1 && names[0] !== 'you' ? 'owes' : 'owe';
+    return `Paid by ${payer === ME ? 'you' : nm(payer)} and ${names.join(', ') || 'nobody'} ${verb}.`;
+  };
   const curGroup = () => store.getRecord('groups', form.elements.groupId.value);
 
   function refresh() {
     const payer = form.elements.payer.value;
     const g = curGroup();
-    const others = othersOf(form.elements.groupId.value || null, payer);
+    const gid = form.elements.groupId.value || null;
+    const others = othersOf(gid, payer);
     const v = toMinor(form.elements.amount.value);
-    const amt = Number.isNaN(v) || !v ? '' : ` of ${money(v)}`;
-    const names = others.map(nm);
+    const names = others.map((x) => (x === ME ? 'You' : nm(x)));
     const verb = names.length === 1 && names[0] !== 'You' ? 'owes' : 'owe';
-    q('#f_hint').textContent = names.length ? `${names.join(', ')} ${verb} ${payer === ME ? 'you' : nm(payer)} the full amount${amt}.` : '';
-    q('#x_split').innerHTML = `Paid by <b>${esc(payer === ME ? 'you' : nm(payer))}</b> and split <b>equally</b>.`;
+    q('#f_hint').textContent = names.length && v > 0 ? `${names.join(', ')} ${verb} ${payer === ME ? 'you' : nm(payer)} ${money(v)}.` : '';
+    q('#x_split').textContent = payPhrase(payer, gid);
     q('#x_group').textContent = g ? g.name : 'No group';
     // the "With you and:" chip: the whole group, or the people ticked
     const others2 = people.filter((p) => p.id !== ME);
@@ -205,11 +211,12 @@ function expenseSheet({ id, groupId, friendId }) {
   }
 
   async function choosePayer() {
-    const mem = gMembers(form.elements.groupId.value || null);
+    const gid = form.elements.groupId.value || null;
+    const mem = gMembers(gid);
     const v = await pickOne({
       title: 'Who paid?',
       selected: form.elements.payer.value,
-      items: people.filter((p) => !mem || mem.includes(p.id)).map((p) => ({ value: p.id, label: nameOf(p), lead: `<span class="avatar pick-lead" style="${avatarStyle(p.id)}">${esc(initial(p.name))}</span>` })),
+      items: people.filter((p) => !mem || mem.includes(p.id)).map((p) => ({ value: p.id, label: payPhrase(p.id, gid), lead: `<span class="avatar pick-lead" style="${avatarStyle(p.id)}">${esc(initial(p.name))}</span>` })),
     });
     if (v === undefined) return;
     form.elements.payer.value = v;
