@@ -33,7 +33,7 @@ function fakeFetch(log, { fcmStatus = 200 } = {}) {
     if (u.includes('/rest/v1/push_tokens') && !init.method) return json([{ token: 'tok-papa', user_id: P }]);
     if (u.includes('/rest/v1/push_tokens')) return json({});
     if (u.includes('coll=eq.people')) return json([{ id: W, data: { name: 'Wasiq' } }, { id: P, data: { name: 'Papa' } }]);
-    if (u.includes('coll=eq.groups')) return json([{ data: { name: 'Home Expenses' } }]);
+    if (u.includes('coll=eq.groups')) return json([{ data: { name: 'Home Expenses', members: [W, P] } }]);
     if (u.includes('fcm.googleapis.com')) return new Response('{}', { status: fcmStatus });
     return json({}, 404);
   };
@@ -68,4 +68,19 @@ test('handle: forgets a token Firebase says is gone', async () => {
 });
 test('handle: ignores people/groups records', async () => {
   assert.equal(await (await handle(req({ kind: 'added', coll: 'people', id: 'x', actor: W, data: {} }), fakeFetch([]))).text(), 'ignored');
+});
+
+test('handle: nothing is sent for an expense outside a group', async () => {
+  const log = [];
+  const res = await handle(req({ kind: 'added', coll: 'expenses', id: 'e2', actor: W, data: { ...expense, groupId: null } }), fakeFetch(log));
+  assert.match(await res.text(), /not in a group/);
+  assert.ok(!log.some((l) => l.url.includes('fcm.googleapis.com')));
+});
+test('handle: only members of the group are told, and a deleted expense still finds its group', async () => {
+  const log = [];
+  const f = fakeFetch(log);
+  const wrap = async (url, init) => (String(url).includes('coll=eq.groups') ? new Response(JSON.stringify([{ data: { name: 'Trip', members: [W, 'someone-else'] } }])) : f(url, init));
+  const res = await handle(req({ kind: 'deleted', coll: 'expenses', id: 'e1', actor: W, data: { id: 'e1', deleted: true }, old: expense }), wrap);
+  assert.match(await res.text(), /nobody to notify/); // Papa is not in this group
+  assert.ok(!log.some((l) => l.url.includes('fcm.googleapis.com')));
 });

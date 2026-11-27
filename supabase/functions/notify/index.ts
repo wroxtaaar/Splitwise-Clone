@@ -12,7 +12,7 @@ const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 /** What this person should read. Pure: easy to test. */
 export function compose({ kind, coll, actor, data, old }, target, names, groupName) {
   const who = names[actor] || 'Someone';
-  const d = data || old || {};
+  const d = (data && (data.amount !== undefined || data.description !== undefined)) ? data : (old || data || {}); // deleted records keep no fields
   if (coll === 'settlements') {
     const from = names[d.from] || 'Someone', to = names[d.to] || 'Someone';
     const line = d.to === target ? `${from} paid you ${money(d.amount || 0)}` : d.from === target ? `You paid ${to} ${money(d.amount || 0)}` : `${from} paid ${to} ${money(d.amount || 0)}`;
@@ -63,18 +63,24 @@ export async function handle(req, fetchFn = fetch) {
 
   const base = env('SUPABASE_URL'), key = env('SUPABASE_SERVICE_ROLE_KEY');
   const sb = (path, init = {}) => fetchFn(`${base}/rest/v1/${path}`, { ...init, headers: { apikey: key, Authorization: `Bearer ${key}`, ...init.headers } });
-  const [tokens, people] = await Promise.all([
+  // Only changes inside a group notify, and only that group's members (never the person who made it).
+  const gid = evt.data?.groupId || evt.old?.groupId; // a deleted record keeps no fields, so fall back to the old copy
+  if (!gid) return new Response('not in a group: nobody to notify');
+  const g = await sb(`records?select=data,deleted&coll=eq.groups&id=eq.${encodeURIComponent(gid)}`).then((r) => r.json());
+  const group = Array.isArray(g) ? g[0] : null;
+  if (!group || !Array.isArray(group.data?.members)) return new Response('group not found: nobody to notify');
+  const members = new Set(group.data.members);
+  members.delete(evt.actor);
+  if (!members.size) return new Response('nobody to notify');
+  const groupName = group.data.name || '';
+
+  const [allTokens, people] = await Promise.all([
     sb(`push_tokens?select=token,user_id&user_id=neq.${encodeURIComponent(evt.actor)}`).then((r) => r.json()),
     sb('records?select=id,data&coll=eq.people&deleted=eq.false').then((r) => r.json()),
   ]);
-  if (!Array.isArray(tokens) || !tokens.length) return new Response('nobody to notify');
+  const tokens = Array.isArray(allTokens) ? allTokens.filter((t) => members.has(t.user_id)) : [];
+  if (!tokens.length) return new Response('nobody to notify');
   const names = Object.fromEntries((Array.isArray(people) ? people : []).map((p) => [p.id, p.data?.name]));
-  const gid = (evt.data || evt.old || {}).groupId;
-  let groupName = '';
-  if (gid) {
-    const g = await sb(`records?select=data&coll=eq.groups&id=eq.${encodeURIComponent(gid)}`).then((r) => r.json());
-    groupName = (Array.isArray(g) && g[0]?.data?.name) || '';
-  }
 
   const sa = JSON.parse(env('FIREBASE_SERVICE_ACCOUNT'));
   const access = await googleToken(sa, fetchFn);
