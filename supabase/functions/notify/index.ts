@@ -71,17 +71,22 @@ export async function handle(req, fetchFn = fetch) {
   const group = Array.isArray(g) ? g[0] : null;
   if (!group || !Array.isArray(group.data?.members)) return new Response('group not found: nobody to notify');
   const members = new Set(group.data.members);
-  members.delete(evt.actor);
-  if (!members.size) return new Response('nobody to notify');
   const groupName = group.data.name || '';
 
   const [allTokens, people] = await Promise.all([
-    sb(`push_tokens?select=token,user_id&user_id=neq.${encodeURIComponent(evt.actor)}`).then((r) => r.json()),
+    sb('push_tokens?select=token,user_id').then((r) => r.json()),
     sb('records?select=id,data&coll=eq.people&deleted=eq.false').then((r) => r.json()),
   ]);
+  const names = Object.fromEntries((Array.isArray(people) ? people : []).map((p) => [p.id, p.data?.name]));
+  // The finance server saves expenses through its own helper login. That login is not one of the two
+  // people, so the real author is the record's createdBy (the one who paid): tell everyone but them.
+  if (!names[evt.actor]) {
+    const author = evt.data?.createdBy || evt.old?.createdBy;
+    if (author && names[author]) evt.actor = author;
+  }
+  members.delete(evt.actor);
   const tokens = Array.isArray(allTokens) ? allTokens.filter((t) => members.has(t.user_id)) : [];
   if (!tokens.length) return new Response('nobody to notify');
-  const names = Object.fromEntries((Array.isArray(people) ? people : []).map((p) => [p.id, p.data?.name]));
 
   const sa = JSON.parse(env('FIREBASE_SERVICE_ACCOUNT'));
   const access = await googleToken(sa, fetchFn);

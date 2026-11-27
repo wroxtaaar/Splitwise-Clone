@@ -48,8 +48,6 @@ test('handle: sends one push to the other person only, signed with a Google toke
   const log = [];
   const res = await handle(req({ kind: 'added', coll: 'expenses', id: 'e1', actor: W, data: expense }), fakeFetch(log));
   assert.equal(await res.text(), 'sent 1');
-  const tokenQuery = log.find((l) => l.url.includes('push_tokens?select'));
-  assert.ok(tokenQuery.url.includes(`user_id=neq.${W}`), 'the sender is excluded');
   const fcm = log.find((l) => l.url.includes('fcm.googleapis.com'));
   assert.ok(fcm.url.includes('/projects/proj/'));
   assert.equal(fcm.init.headers.Authorization, 'Bearer ya29.fake');
@@ -83,4 +81,14 @@ test('handle: only members of the group are told, and a deleted expense still fi
   const res = await handle(req({ kind: 'deleted', coll: 'expenses', id: 'e1', actor: W, data: { id: 'e1', deleted: true }, old: expense }), wrap);
   assert.match(await res.text(), /nobody to notify/); // Papa is not in this group
   assert.ok(!log.some((l) => l.url.includes('fcm.googleapis.com')));
+});
+
+test('handle: an expense saved by the finance helper login is credited to its createdBy, who is not notified', async () => {
+  const log = [];
+  const f = fakeFetch(log);
+  const wrap = async (url, init) => (String(url).includes('push_tokens?select') ? new Response(JSON.stringify([{ token: 'tok-w', user_id: W }, { token: 'tok-papa', user_id: P }])) : f(url, init));
+  const res = await handle(req({ kind: 'added', coll: 'expenses', id: 'e9', actor: 'helper-bot', data: { ...expense, createdBy: W } }), wrap);
+  assert.equal(await res.text(), 'sent 1');
+  const sent = log.filter((l) => l.url.includes('fcm.googleapis.com')).map((l) => JSON.parse(l.init.body).message.token);
+  assert.deepEqual(sent, ['tok-papa']);
 });
