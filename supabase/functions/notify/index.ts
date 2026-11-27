@@ -1,3 +1,4 @@
+// @ts-nocheck  (plain JavaScript in a .ts file so it also runs under Node for the tests; this silences the editor)
 // Supabase Edge Function "notify": turns a database change into a push notification for the OTHER person.
 // Called only by the database trigger in supabase/push.sql (checked with the x-push-secret header).
 // Secrets it needs (Edge Functions -> Secrets): PUSH_SECRET, FIREBASE_SERVICE_ACCOUNT. Turn "Verify JWT" OFF.
